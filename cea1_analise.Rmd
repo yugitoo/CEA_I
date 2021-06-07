@@ -1,0 +1,417 @@
+---
+title: "Análise dos Dados"
+author: "Hei, Karine e Yugo"
+date: "06/06/2021"
+output: html_document
+---
+
+<!-- output: word_document -->
+
+
+```{r setup, include=FALSE}
+require(tidyverse)
+#require(transformr)
+knitr::opts_chunk$set(cache=TRUE, fig.align="center", out.width="100%", warning=FALSE, message = FALSE)
+```
+
+## Introdução
+
+Pacotes Necessários para a análise
+```{r}
+library(readxl)
+library(ggplot2)
+library("grDevices")
+library(RColorBrewer)
+library("summarytools")
+library(dplyr)
+library(tidyr)
+library(scales)
+library("ggpubr")
+library(GGally)
+library(qwraps2)
+library(car)
+library(reshape2)
+library(Rmisc)
+library(nlme)
+library(lme4)
+library(robustbase)
+library(corrplot)
+library(ca)
+
+```
+
+---
+
+### Definição de Funções
+
+* **painel.hist** função que será utilizada para a matriz de dispersão e correlação.
+* **painel.cor** função que será utilizada para a matriz de dispersão e correlação.
+
+
+```{r}
+panel.hist <- function(x, ...) {
+  usr <- par("usr")
+  on.exit(par(usr))
+  par(usr = c(usr[1:2], 0, 1.5))
+  h <- hist(x, plot = FALSE)
+  breaks <- h$breaks
+  nB <- length(breaks)
+  y <- h$counts
+  y <- y/max(y)
+  rect(breaks[-nB], 0, breaks[-1], y, col = "black", border = "white", ...)
+}
+panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...) {
+  usr <- par("usr")
+  on.exit(par(usr))
+  par(usr = c(0, 1, 0, 1))
+  r <- (cor(x, y, use = "complete.obs"))
+  txt <- format(c(r, 0.123456789), digits = digits)[1]
+  txt <- paste(prefix, txt, sep = "")
+  if (missing(cex.cor)) cex.cor <- 0.8/strwidth(txt)
+  text(0.5, 0.5, txt, cex =  cex.cor * (1 + abs(r)) / 2)
+}
+
+
+```
+---
+
+### Leitura dos Dados
+
+- Ler a tabela de arquivos já organizada
+- Excluir a coluna referente ao número da amostra usada pelo laboratório
+- Tranformar a variável data em um tipo datetime
+- Criar a variável "Estação do ano"
+- Criar a tranformação log para os homônios
+
+```{r}
+dados<- read_excel("dados_organizados.xlsx")
+
+dados<- data.frame(dados)
+dados<-dados[, c(-3)]  #exclir a variável resferente ao número da amostra usada pelo laboratório
+dados$data<- as.Date(dados$data)
+
+
+
+#Criando a variável de estações do ano
+dados['estacoes'] <- rep(c('outono', 'outono', 'outono', 'inverno', 'inverno', 'primavera', 
+                           'primavera', 'verao', 'verao', 'verao', 'outono', 'inverno', 'inverno', 'primavera', 'primavera'), 6)
+
+#Transformação log
+dados['logP4']<-log(dados$P4)
+dados['logE2']<-log(dados$E2+0.1)
+
+View(dados) #visualizar os dados
+```
+
+---
+
+### Análise Descritiva
+
+
+$~$
+
+**Tabela de Medidas Resumo**
+
+
+```{r descritiva}
+summary(dados)
+dados %>% descr(., stats = c('mean','sd', 'min', 'q1', 'med', 'q3', 'max'), justify = "c",
+                split.tables = 100, round.digits = 3, transpose = TRUE, headings = TRUE)
+
+```
+
+**Dispersões**
+
+
+```{r descritiva}
+plot(dados[,c(3,4,5,6,7,8)] , pch=16 , cex=1.5 , col="#69b3a2")
+
+```
+
+**Densidades**
+
+
+```{r descritiva}
+a <-ggplot(dados, aes(x=P4)) + 
+  geom_density(color="darkblue", fill="lightblue")
+b <-ggplot(dados, aes(x=E2)) + 
+  geom_density(color="darkblue", fill="lightblue")
+c <-ggplot(dados, aes(x=Estágio.I)) + 
+  geom_density(color="darkblue", fill="lightblue")
+d <-ggplot(dados, aes(x=Estágio.II)) + 
+  geom_density(color="darkblue", fill="lightblue")
+e <-ggplot(dados, aes(x=Estágio.III)) + 
+  geom_density(color="darkblue", fill="lightblue")
+f <-ggplot(dados, aes(x=Estágio.IV)) + 
+  geom_density(color="darkblue", fill="lightblue")
+
+figure <- ggarrange(a,b,c,d,e,f,
+                    ncol = 3, nrow = 2)
+figure
+
+```
+
+**Dispersão entre P4 e E2, com e sem transformação log**
+
+```{r}
+par(mfrow=c(1, 2))
+plot(dados$E2, dados$P4, xlab='E2', ylab='P4', pch = 16, col = 'blue')
+plot(log(dados$E2), log(dados$P4), xlab='log E2', ylab='log P4', pch = 16, col = 'blue')
+
+```
+
+**Dispersões e Correlações, com a transformação log**
+
+```{r}
+pairs(dados[,c(11,12,5,6,7,8)],upper.panel = panel.cor,
+            pch=16 , col="#69b3a2")
+```
+
+**Perfis individuais e médios para o log dos hormônios, ao longo do tempo**
+
+```{r}
+ggplot(dados, aes(x = data, y = log(P4))) +
+  stat_summary(fun.y=mean,geom="point") + 
+  stat_summary(fun.data=mean_cl_normal, geom="errorbar") + 
+  stat_summary(fun.y=mean,geom="line",aes(group=""),linetype="dashed") +
+  geom_line(aes(x = data, y = log(P4), group = femea, color = femea)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_x_date(date_breaks = "1 month", labels = date_format("%m-%Y")) +
+  geom_point(aes(shape = femea, color=femea))
+
+
+ggplot(dados, aes(x = data, y = log(E2))) +
+  stat_summary(fun.y=mean,geom="point") + 
+  stat_summary(fun.data=mean_cl_normal, geom="errorbar") + 
+  stat_summary(fun.y=mean,geom="line",aes(group=""),linetype="dashed") +
+  geom_line(aes(x = data, y = log(E2), group = femea, color = femea)) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_x_date(date_breaks = "1 month", labels = date_format("%m-%Y")) +
+  geom_point(aes(shape = femea, color=femea))
+
+
+#P4 e E2, por estação
+P4.plot2 <- summarySE(dados, measurevar = 'logP4', groupvars = 'estacoes', na.rm = TRUE)
+P4.plot2$estacoes<-factor(P4.plot2$estacoes, levels = c("verao","outono", "inverno", 
+                                                        "primavera"))
+ggplot(P4.plot2, aes(x=estacoes, y=logP4, group=1)) + 
+  geom_errorbar(aes(ymin=logP4-se, ymax=logP4+se), width=.1) +
+  geom_line() +
+  geom_point() +
+  labs(x="Estações", y="logP4 (pg/mL)")
+
+
+E2.plot2 <- summarySE(dados, measurevar = 'logE2', groupvars = 'estacoes', na.rm = TRUE)
+E2.plot2$estacoes<-factor(E2.plot2$estacoes, levels = c("verao","outono", "inverno", 
+                                                        "primavera"))
+ggplot(E2.plot2, aes(x=estacoes, y=logE2, group=1)) + 
+  geom_errorbar(aes(ymin=logE2-se, ymax=logE2+se), width=.1) +
+  geom_line() +
+  geom_point() +
+  labs(x="Estações", y="log E2 (ng/mL)")
+```
+
+**Perfis individuais e médios para o log dos hormônios, ao longo do tempo**
+
+```{r}
+#Por data ---
+est_data <-dados %>% dplyr::group_by(data) %>% dplyr::summarise(Estágio.I = sum(Estágio.I, na.rm = TRUE), 
+                                                                Estágio.II = sum(Estágio.II, na.rm = TRUE),
+                                                                Estágio.III = sum(Estágio.III, na.rm = TRUE),
+                                                                Estágio.IV = sum(Estágio.IV, na.rm = TRUE))
+teste<-data.frame(t(est_data), stringsAsFactors = FALSE)
+colnames(teste)=teste[c(1),]
+teste=teste[-c(1),]
+teste[] <- lapply(teste, function(x) as.numeric(as.character(x)))
+teste<-data.frame(lapply(teste,function(x) x/sum(x)))
+colnames(teste)<-as.Date(unique(dados$data))
+teste["Estágio"] <- c("I","II","III","VI")
+teste2 <- melt(teste, id.vars = "Estágio")
+
+ggplot(teste2, aes(x = variable, y = value, fill = Estágio)) + 
+  geom_bar(stat = "identity") +
+  xlab("Data") +
+  ylab("Porcentagem") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) 
+
+# Por estação 
+est_esta<-dados %>% dplyr::group_by(estacoes) %>% dplyr::summarise(Estágio.I = sum(Estágio.I, na.rm = TRUE), 
+                                                                   Estágio.II = sum(Estágio.II, na.rm = TRUE),
+                                                                   Estágio.III = sum(Estágio.III, na.rm = TRUE),
+                                                                   Estágio.IV = sum(Estágio.IV, na.rm = TRUE))
+teste<-data.frame(t(est_esta), stringsAsFactors = FALSE)
+colnames(teste)=teste[c(1),]
+teste=teste[-c(1),]
+tab=teste
+View(tab)
+teste[] <- lapply(teste, function(x) as.numeric(as.character(x)))
+teste<-data.frame(lapply(teste,function(x) x/sum(x)))
+teste<-teste[, c(4, 2,1,3)]
+teste["Estágio"] <- c("I","II","III","VI")
+teste2 <- melt(teste, id.vars = "Estágio")
+
+ggplot(teste2, aes(x = variable, y = value, fill = Estágio)) + 
+  geom_bar(stat = "identity") +
+  xlab("Data") +
+  ylab("Porcentagem") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+
+# Perfis individuais e médios por data
+df <- pivot_longer(dados, cols=5:8, names_to = "Estágio", values_to = "Quantidade")
+profile <- ggplot(df, aes(x=data, y=Quantidade, group=femea)) +
+  geom_line(aes(linetype = Estágio, group = femea, color = femea), size = 0.5) +
+  geom_point(aes(color = femea), size = 1.5) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
+  scale_x_date(date_breaks = "1 month", labels = date_format("%m-%Y")) +
+  stat_summary(fun.y=mean, geom="line",lwd=1.0, aes(group=Estágio)) +
+  xlab("Data") +
+  ylab("Quantidade de foliculos ovulares") +
+  theme(axis.text.x = element_text(size=13)) +
+  theme(axis.text.y = element_text(size=13)) +
+  facet_wrap(~Estágio)
+profile
+
+# Perfis médios por estação
+EstágioI.plot2 <- summarySE(dados, measurevar = 'Estágio.I', groupvars = 'estacoes', na.rm = TRUE)
+EstágioI.plot2$estacoes<-factor(EstágioI.plot2$estacoes, levels = c("verao","outono", "inverno", 
+                                                        "primavera"))
+e1 <- ggplot(EstágioI.plot2, aes(x=estacoes, y=Estágio.I, group=1)) + 
+  geom_errorbar(aes(ymin=Estágio.I-se, ymax=Estágio.I+se), width=.1) +
+  geom_line() +
+  geom_point() +
+  labs(x="Estações", y="Estágio.I")
+
+EstágioII.plot2 <- summarySE(dados, measurevar = 'Estágio.II', groupvars = 'estacoes', na.rm = TRUE)
+EstágioII.plot2$estacoes<-factor(EstágioII.plot2$estacoes, levels = c("verao","outono", "inverno", 
+                                                                    "primavera"))
+e2 <- ggplot(EstágioII.plot2, aes(x=estacoes, y=Estágio.II, group=1)) + 
+  geom_errorbar(aes(ymin=Estágio.II-se, ymax=Estágio.II+se), width=.1) +
+  geom_line() +
+  geom_point() +
+  labs(x="Estações", y="Estágio.II")
+
+EstágioIII.plot2 <- summarySE(dados, measurevar = 'Estágio.III', groupvars = 'estacoes', na.rm = TRUE)
+EstágioIII.plot2$estacoes<-factor(EstágioIII.plot2$estacoes, levels = c("verao","outono", "inverno", 
+                                                                      "primavera"))
+e3<-ggplot(EstágioIII.plot2, aes(x=estacoes, y=Estágio.III, group=1)) + 
+  geom_errorbar(aes(ymin=Estágio.III-se, ymax=Estágio.III+se), width=.1) +
+  geom_line() +
+  geom_point() +
+  labs(x="Estações", y="Estágio.III")
+
+EstágioIV.plot2 <- summarySE(dados, measurevar = 'Estágio.IV', groupvars = 'estacoes', na.rm = TRUE)
+EstágioIV.plot2$estacoes<-factor(EstágioIV.plot2$estacoes, levels = c("verao","outono", "inverno", 
+                                                                        "primavera"))
+e4<-ggplot(EstágioIV.plot2, aes(x=estacoes, y=Estágio.IV, group=1)) + 
+  geom_errorbar(aes(ymin=Estágio.IV-se, ymax=Estágio.IV+se), width=.1) +
+  geom_line() +
+  geom_point() +
+  labs(x="Estações", y="Estágio.IV")
+
+figure <- ggarrange(e1,e2,e3,e4,
+                    ncol = 2, nrow = 2)
+figure
+
+# Tabela
+View(tab)  #tabela criada anteriormente, com os dados de estágios e estações do ano
+
+tab <- matrix(c(303, 116, 236, 48,466, 153, 46, 2,121, 35, 95, 23,570, 88, 34, 9)
+              , ncol=4, byrow=TRUE)
+colnames(tab) <- c('EstágioI',  'EstágioII',  'EstágioIII',  'EstágioIV')
+rownames(tab) <- c('inverno', 'outono', 'primavera', 'verao')
+tab <- as.table(tab)
+tab
+
+#porcentagem nas linhas
+tabelal <- prop.table(tab,1)
+print(tabelal, digits=3)
+
+#porcentagem nas colunas
+tabelac <- prop.table(tab,2)
+print(tabelac, digits=3)
+
+#porcentagem total
+tabelap <- prop.table(tab)
+tabelap
+
+#teste qui quadrado e seu valor p
+chisq <- chisq.test(tab)
+chisq
+
+#Coeficiente de contigência
+coef_cont <- sqrt(chisq$statistic/(chisq$statistic+sum(tab)))
+coef_cont
+
+#Coeficiente de Tchusprov
+coef_tsch <- sqrt((chisq$statistic/sum(tab))/sqrt(9))
+coef_tsch
+
+#Análise de correspondêcia
+ac <- ca(tab, nd=3)
+ac
+summary(ac)
+plot(ac, main='Mapa Simétrico')  #simétrico
+# mapas assimétricos
+plot(ac, map="rowprincipal")
+plot(ac, map="colprincipal")
+
+```
+
+**Hormônios e Estágios**
+```{r}
+# Hormonios x proporcao de estagio ----
+cores<- brewer.pal(16, "Set2")
+
+# junta pela soma de acordo com E2 e P4 retirando casos em que E2 = 0 e P4 = 0
+est<-dados %>% dplyr::group_by(E2,P4) %>% 
+  dplyr::summarise(Estágio.I = sum(Estágio.I, na.rm = TRUE), 
+                                                           Estágio.II = sum(Estágio.II, na.rm = TRUE),
+                                                           Estágio.III = sum(Estágio.III, na.rm = TRUE),
+                                                           Estágio.IV = sum(Estágio.IV, na.rm = TRUE)) %>%
+        filter(E2!= 0 & P4 != 0)
+
+# cria coluna com soma de quant. foliculos por linha e faz transformacao log
+est["total"] <- rowSums(est[3:6])
+est["log_E2"] <-log(est["E2"])
+est["log_P4"] <-log(est["P4"])
+
+# Vetor com o nome dos estagios
+Estagios <- c("Estagio_I","Estagio_II","Estagio_III","Estagio_IV")
+Hormonios <- c("E2","P4")
+
+# Cria uma coluna pra cada estagio com proporcao respectiva
+for(i in 1:length(Estagios)){
+  est[paste0("Prop_",Estagios[i])] <- est[i+2]/est["total"]
+}
+
+# retira linhas em que nao ha nenhum folicullo, pois a divisao 0/0 eh indefinido
+est <- est %>% filter(total != 0) 
+
+# plota grafico log E2 x proporcao estagios e log P4 x proporcao estagios
+par(mfrow=c(1,2))
+legenda <- c("Estágio 1","Estágio 2","Estágio 3","Estágio 4")
+
+for (j in 1:length(Hormonios)) {
+  with(est,plot(eval(parse(text = paste0("log_",Hormonios[j]))),
+                Prop_Estagio_I,
+                xlab = paste0("log(",Hormonios[j],")"), ylab = "% de folículos", 
+                ylim = c(0,1),pch = 16, col=cores[1]))
+  
+  for (i in 1:length(Estagios)) {
+    with(est,points(eval(parse(text = paste0("log_",Hormonios[j]))),
+                    eval(parse(text = paste0("Prop_",Estagios[i]))),
+                    col=cores[i], pch=16))
+    
+    with(est,lines(smooth.spline(eval(parse(text = paste0("log_",Hormonios[j])))
+                                 ,eval(parse(text = paste0("Prop_",Estagios[i])))
+                                 ,df=3), col=cores[i], pch=16))
+  }
+  legend("topright",inset = 0, legend = legenda, col = cores[1:4], lty=1,cex=0.8,box.lty=0,bg="transparent")
+}
+
+```
+
+
+```{r}
+```
+
