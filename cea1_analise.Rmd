@@ -108,8 +108,6 @@ View(dados) #visualizar os dados
 ### Análise Descritiva
 
 
-$~$
-
 **Tabela de Medidas Resumo**
 
 
