@@ -7,7 +7,7 @@ output: html_document
 
 <!-- output: word_document -->
 
-asjlhdgflasjdhf;jas df;hqwaliusgf bual szgudlf
+asdf novo nada
 
 ```{r setup, include=FALSE}
 require(tidyverse)
