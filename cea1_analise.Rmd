@@ -107,7 +107,7 @@ View(dados) #visualizar os dados
 
 ### Análise Descritiva
 
-
+teste
 $~$
 
 **Tabela de Medidas Resumo**
