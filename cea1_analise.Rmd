@@ -107,6 +107,11 @@ View(dados) #visualizar os dados
 
 ### Análise Descritiva
 
+<<<<<<< HEAD
+=======
+teste
+$~$
+>>>>>>> 30c27537a026f2bf2c3060810103140f38f99fc9
 
 **Tabela de Medidas Resumo**
 
