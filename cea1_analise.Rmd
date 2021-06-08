@@ -7,10 +7,6 @@ output: html_document
 
 <!-- output: word_document -->
 
-asdf novo nada
-
-ulash fhasd flas hdfli
-
 
 ```{r setup, include=FALSE}
 require(tidyverse)
