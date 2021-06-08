@@ -8,6 +8,7 @@ output: html_document
 <!-- output: word_document -->
 
 asdf novo nada
+mais uma linha
 
 ```{r setup, include=FALSE}
 require(tidyverse)
