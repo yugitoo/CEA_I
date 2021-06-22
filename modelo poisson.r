@@ -1,3 +1,5 @@
+## teste
+
 require(robustbase)
 require(MASS)
 #ratosgee = read.table(dados_organizados.xlsx, header=TRUE)
