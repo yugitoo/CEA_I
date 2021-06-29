@@ -97,21 +97,18 @@ dados['estacoes'] <- rep(c('outono', 'outono', 'outono', 'inverno', 'inverno', '
                            'primavera', 'verao', 'verao', 'verao', 'outono', 'inverno', 'inverno', 'primavera', 'primavera'), 6)
 
 #Transformação log
+dados['P4']<-dados['P4']+1
+dados['E2']<-dados['E2']+1
+
 dados['logP4']<-log(dados$P4)
-dados['logE2']<-log(dados$E2+0.1)
+dados['logE2']<-log(dados$E2)
 
 View(dados) #visualizar os dados
+attach(dados)
 ```
 
 ---
 
-### Análise Descritiva
-
-<<<<<<< HEAD
-=======
-teste
-$~$
->>>>>>> 30c27537a026f2bf2c3060810103140f38f99fc9
 
 **Tabela de Medidas Resumo**
 
@@ -362,6 +359,8 @@ plot(ac, map="colprincipal")
 
 **Hormônios e Estágios**
 ```{r}
+k <- 1
+
 # Hormonios x proporcao de estagio ----
 cores<- brewer.pal(16, "Set2")
 
@@ -370,14 +369,18 @@ est<-dados %>% dplyr::group_by(E2,P4) %>%
   dplyr::summarise(Estágio.I = sum(Estágio.I, na.rm = TRUE), 
                                                            Estágio.II = sum(Estágio.II, na.rm = TRUE),
                                                            Estágio.III = sum(Estágio.III, na.rm = TRUE),
-                                                           Estágio.IV = sum(Estágio.IV, na.rm = TRUE)) %>%
-        filter(E2!= 0 & P4 != 0)
+                                                           Estágio.IV = sum(Estágio.IV, na.rm = TRUE)) %>% drop_na(P4,E2)
+
+ # %>%
+ #        filter(E2!= 0 & P4 != 0)
 
 # cria coluna com soma de quant. foliculos por linha e faz transformacao log
 est["total"] <- rowSums(est[3:6])
+est["E2"] <-est["E2"]+k
+est["P4"] <-est["P4"]+k
 est["log_E2"] <-log(est["E2"])
 est["log_P4"] <-log(est["P4"])
-
+est
 # Vetor com o nome dos estagios
 Estagios <- c("Estagio_I","Estagio_II","Estagio_III","Estagio_IV")
 Hormonios <- c("E2","P4")
@@ -416,5 +419,17 @@ for (j in 1:length(Hormonios)) {
 
 
 ```{r}
+#Gráfico: Perfis de Médias de acordo com os 2 fatores
+df <- pivot_longer(dados, cols=5:8, names_to = "Estagio", values_to = "Quantidade")
+df["oviduto"] <- NULL
+df <- df %>% drop_na()
+# df %>% group_by(P4,estacoes,Estagio) %>% summarise(Quantidade = mean(Quantidade))
+# with(est, interaction.plot(factor(f1),factor(f2),E2,main="Gráfico de interação")) #var explicativa, id, resp
+df
+with(df, interaction.plot(factor(estacoes), factor(Estagio), 
+                           response = logP4, col = cores))
+with(df, interaction.plot(factor(estacoes), factor(Estagio), 
+                           response = logE2, col = cores))
 ```
+
 

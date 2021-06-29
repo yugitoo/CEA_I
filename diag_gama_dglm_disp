@@ -1,0 +1,41 @@
+#-----------------------------------------------------------------------#
+# Comandos:
+#        > fit.model <- ajuste
+#        > attach(dados)
+#        > source("diag_gama_dglm_disp")
+#-----------------------------------------------------------------------#
+X <- model.matrix(fit.model)
+n <- nrow(X)
+p <- ncol(X)
+Z=X
+library(dglm)
+mu <- fitted(fit.model)
+resp <- fit.model$y
+fi <- fitted(fit.model$dispersion)
+fi <- 1/fi
+p = fi*(fi*trigamma(fi) - 1)
+P <- diag(p)
+R <- solve(t(Z)%*%P%*%Z)
+R <- sqrt(P)%*%Z%*%R%*%t(Z)%*%sqrt(P)
+r <- diag(R)
+t <- log(resp/mu) - resp/mu 
+t1 = t + 1 + log(fi) - digamma(fi)
+tt = t1/sqrt((1-r)*(trigamma(fi) - 1/fi))
+par(mfrow=c(1,2))
+td <- resid(fit.model$dispersion,type="deviance")/sqrt(1-r)
+#
+a <- max(td)
+b <- min(td)
+di = (r/(1-r))*(tt^2)
+#
+plot(di,xlab="Indice", ylab="Distancia de Cook", pch=16)
+cut = mean(di) + 4*sd(di)
+abline(cut,0,lty=2)
+identify(di, n=4)
+#
+plot(fitted(fit.model$dispersion),td,xlab="Valor Ajustado", 
+ylab="Residuo Componente do Desvio",ylim=c(b-1,a+1),pch=16)
+#identify(fitted(fit.model)$dispersion,td, n=1)
+par(mfrow=c(1,1))
+#-----------------------------------------------------------------------#
+
