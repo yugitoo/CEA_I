@@ -54,9 +54,7 @@ est$estacoes = relevel(est$estacoes, ref = "inverno") # define a casela de refer
 fit1_inverno <- glmer.nb(Estagio.I ~ estacoes+E2+ estacoes:E2 +(1|femea), data=na.omit(est))
 summary(fit1_inverno)
 
-getME(fit1_inverno, 'glmer.nb.theta')
-
-#### Estagio 1 - Anova ----
+### Estagio 1 - ANOVA----
 car::Anova(fit1_inverno)
 
 #### Estagio 1 - Residuos Dharma ----
@@ -69,7 +67,6 @@ plot(simulationOutput)
 est$estacoes = relevel(est$estacoes, ref = "outono")
 fit1_outono <- glmer.nb(Estagio.I ~ estacoes+E2+ estacoes:E2 +(1|femea), data=na.omit(est))
 summary(fit1_outono)
-getME(fit1_outono, 'glmer.nb.theta')
 
 #### Estagio 1 - Primavera de referencia ----
 est$estacoes = relevel(est$estacoes, ref = "primavera")
@@ -105,12 +102,20 @@ tab_model(fit1_verao, show.se = TRUE, string.est = "Estimativa",
 #######################################################
 ### Modelagem -  Estagio 2 ----
 est$estacoes = relevel(est$estacoes, ref = "inverno")
-fit2_inverno <- glmer.nb(Estagio.II ~ E2 + estacoes+  (1|femea), data=na.omit(est))
+fit2_inverno <- glmer.nb(Estagio.II ~ E2 * estacoes+  (1|femea), data=na.omit(est))
 summary(fit2_inverno)
-getME(fit2_inverno, 'glmer.nb.theta')
 
 #### Estagio 2 - Anova ----
 car::Anova(fit2_inverno)
+
+#### modelo so com intercepto ----
+fit2_reduzido <- glmer.nb(Estagio.II ~ (1|femea), data=na.omit(est)) 
+
+#### Estagio 2 - Residuos Dharma ----
+simulationOutput <- simulateResiduals(fittedModel=fit2_reduzido, plot = F)
+residuals(simulationOutput)
+residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
+plot(simulationOutput)
 
 
 #######################################################
@@ -119,19 +124,30 @@ car::Anova(fit2_inverno)
 est['inv_prim'] = (ifelse(est$estacoes=='verao' | est$estacoes=='outono', 0, 1))
 
 ###### para Estagio III:######
+
+### Estagio 3 - modelo completo com interacao ----
+fit3_completo0 <- glmmTMB(Estagio.III ~ estacoes*E2+P4 +(1 | femea),
+                          data=na.omit(est), 
+                          family=nbinom1(link="log"))
+
+### Estagio 3 - ANOVA----
+car::Anova(fit3_completo0)
+
+### Estagio 3 - modelo completo sem interacao ----
+
 est$estacoes = relevel(est$estacoes, ref = "verao")
 fit3_completo <- glmmTMB(Estagio.III ~ estacoes+E2+P4 +(1 | femea),
                          data=na.omit(est), 
                          family=nbinom1(link="log"))
 summary(fit3_completo)
-confint(fit3_completo,parm="theta_")
+
+### Modelo reduzido
 
 est$estacoes = relevel(est$estacoes, ref = "inverno")
 fit3_reduzido <- glmmTMB(Estagio.III ~ inv_prim+E2+P4 +(1 | femea),
                          data=na.omit(est), 
                          family=nbinom1(link="log"))
 summary(fit3_reduzido)
-confint(fit3_reduzido,parm="theta_")
 
 #### Estagio 3 -  teste razao de verossimilhanca ----
 lrtest( fit3_reduzido, fit3_completo)
@@ -166,14 +182,19 @@ est$estacoes = relevel(est$estacoes, ref = "verao")
 fit4_completo <- glmer.nb(Estagio.IV ~ estacoes+E2+P4 + (1 | femea),
                           data=na.omit(est))
 summary(fit4_completo)
-getME(fit4_completo, 'glmer.nb.theta')
+
+### Estagio 4 - ANOVA----
+fit4_completo0 <- glmer.nb(Estagio.IV ~ estacoes*E2+P4 + (1 | femea),
+                          data=na.omit(est))
+
+car::Anova(fit4_completo0)
+
 
 #### Estagio 4 - modelo reduzido ----
 est$estacoes = relevel(est$estacoes, ref = "inverno")
 fit4_reduzido <- glmer.nb(Estagio.IV ~ inv_prim+E2+P4 +(1 | femea),
                           data=na.omit(est))
 summary(fit4_reduzido)
-getME(fit4_reduzido, 'glmer.nb.theta')
 
 #### Estagio 4 - Teste razao de verossimilhanca ----
 lrtest( fit4_reduzido, fit4_completo)
@@ -222,14 +243,14 @@ summary(fit5_reduzido)
 ### Progesterona - teste razao de verossimilhanca ----
 lrtest(fit5_completo, fit5_reduzido)
 
-### Estradiol - Residuos Dharma ----
+### Progesterona - Residuos Dharma ----
 simulationOutput <- simulateResiduals(fittedModel=fit5_reduzido, plot = F)
 residuals(simulationOutput)
 residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
 plot(simulationOutput)
 
 
-### Estradiol - exponecializa e transforma em tabela ----
+### Progesterona - exponecializa e transforma em tabela ----
 tab_model(fit5_completo, show.se = TRUE, string.est = "Estimativa",
           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
           show.reflvl = TRUE, digits = 3)
