@@ -18,13 +18,7 @@ knitr::opts_chunk$set(cache=TRUE, fig.align="center", out.width="100%", warning=
 
 ## Pacotes Necessarios para a analise
 ```{r}
-library(readxl)
-library(ggplot2)
 library("grDevices")
-library(RColorBrewer)
-library("summarytools")
-library(dplyr)
-library(tidyr)
 library(scales)
 library("ggpubr")
 library(GGally)
@@ -32,15 +26,32 @@ library(qwraps2)
 library(car)
 library(reshape2)
 library(Rmisc)
-library(nlme)
-library(lme4)
 library(robustbase)
 library(corrplot)
 library(ca)
+library(glmm)
+library(glmmTMB)
+library(readxl)
+library(ggplot2)
+library(RColorBrewer)
+library("summarytools")
+library(dplyr)
+library(tidyr)
+library(nlme)
+library(lme4)
+library(gamlss)
+require(dglm)
+require(MASS)
+library(effects)
+library(sjPlot)
+library(lmtest)
+require(pscl)
 
+#remotes::install_github("nyiuab/NBZIMM")
+#devtools::install_github(repo = "florianhartig/DHARMa", subdir = "DHARMa", 
+#dependencies = T, build_vignettes = T)
+library(DHARMa)
 ```
-
----
 
 ### Definicao de Funcoes
 
@@ -73,7 +84,6 @@ panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...) {
 
 
 ```
----
 
 ### Leitura dos Dados
 
@@ -106,9 +116,6 @@ dados['logE2']<-log(dados$E2)
 dados #visualizar os dados
 attach(dados)
 ```
-
----
-
 
 ## Analise descritiva
 ### Tabela de Medidas Resumo
@@ -178,7 +185,8 @@ ggplot(dados, aes(x = data, y = log(P4))) +
   geom_line(aes(x = data, y = log(P4), group = femea, color = femea)) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
   scale_x_date(date_breaks = "1 month", labels = date_format("%m-%Y")) +
-  geom_point(aes(shape = femea, color=femea))
+  geom_point(aes(shape = femea, color=femea)) + 
+  labs(x="Estações", y="log P4")
 
 
 ggplot(dados, aes(x = data, y = log(E2))) +
@@ -188,10 +196,11 @@ ggplot(dados, aes(x = data, y = log(E2))) +
   geom_line(aes(x = data, y = log(E2), group = femea, color = femea)) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
   scale_x_date(date_breaks = "1 month", labels = date_format("%m-%Y")) +
-  geom_point(aes(shape = femea, color=femea))
+  geom_point(aes(shape = femea, color=femea)) +
+  labs(x="Estações", y="log E2")
 
 
-#P4 e E2, por estacao
+#P4 e E2, por estação
 P4.plot2 <- summarySE(dados, measurevar = 'logP4', groupvars = 'estacoes', na.rm = TRUE)
 P4.plot2$estacoes<-factor(P4.plot2$estacoes, levels = c("verao","outono", "inverno", 
                                                         "primavera"))
@@ -199,7 +208,7 @@ ggplot(P4.plot2, aes(x=estacoes, y=logP4, group=1)) +
   geom_errorbar(aes(ymin=logP4-se, ymax=logP4+se), width=.1) +
   geom_line() +
   geom_point() +
-  labs(x="Estacoes", y="logP4 (pg/mL)")
+  labs(x="Estações", y="log P4 (pg/mL)")
 
 
 E2.plot2 <- summarySE(dados, measurevar = 'logE2', groupvars = 'estacoes', na.rm = TRUE)
@@ -209,10 +218,10 @@ ggplot(E2.plot2, aes(x=estacoes, y=logE2, group=1)) +
   geom_errorbar(aes(ymin=logE2-se, ymax=logE2+se), width=.1) +
   geom_line() +
   geom_point() +
-  labs(x="Estacoes", y="log E2 (ng/mL)")
+  labs(x="Estações", y="log E2 (ng/mL)")
 ```
 
-### Perfis individuais e medios para o log dos hormonios, ao longo do tempo
+### Perfis individuais e medios para os estagios, ao longo do tempo
 
 ```{r}
 #Por data ---
@@ -260,16 +269,16 @@ ggplot(teste2, aes(x = variable, y = value, fill = Estagio)) +
 # Perfis individuais e medios por data
 df <- pivot_longer(dados, cols=5:8, names_to = "Estagio", values_to = "Quantidade")
 profile <- ggplot(df, aes(x=data, y=Quantidade, group=femea)) +
-  geom_line(aes(linetype = Estagio, group = femea, color = femea), size = 0.5) +
+  geom_line(aes(group = femea, color = femea), size = 0.5) +
   geom_point(aes(color = femea), size = 1.5) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
   scale_x_date(date_breaks = "1 month", labels = date_format("%m-%Y")) +
-  stat_summary(fun.y=mean, geom="line",lwd=1.0, aes(group=Estagio)) +
+  stat_summary(fun.y=mean, geom="line",lwd=1.0, aes(group=Estágio)) +
   xlab("Data") +
   ylab("Quantidade de foliculos ovulares") +
   theme(axis.text.x = element_text(size=13)) +
   theme(axis.text.y = element_text(size=13)) +
-  facet_wrap(~Estagio)
+  facet_wrap(~Estágio)
 profile
 
 # Perfis medios por estacao
@@ -335,10 +344,6 @@ print(tabelac, digits=3)
 tabelap <- prop.table(tab)
 tabelap
 
-#teste qui quadrado e seu valor p
-chisq <- chisq.test(tab)
-chisq
-
 #Coeficiente de contigencia
 coef_cont <- sqrt(chisq$statistic/(chisq$statistic+sum(tab)))
 coef_cont
@@ -352,118 +357,11 @@ ac <- ca(tab, nd=3)
 ac
 summary(ac)
 plot(ac, main='Mapa Simetrico')  #simetrico
-# mapas assimetricos
-plot(ac, map="rowprincipal")
-plot(ac, map="colprincipal")
 
 ```
 
-### Hormonios e Estagios
-```{r}
-k <- 1
-
-# Hormonios x proporcao de estagio ----
-cores<- brewer.pal(16, "Set2")
-
-# junta pela soma de acordo com E2 e P4 retirando casos em que E2 = 0 e P4 = 0
-est<-dados %>% dplyr::group_by(E2,P4) %>% 
-  dplyr::summarise(Estagio.I = sum(Estagio.I, na.rm = TRUE), 
-                                                           Estagio.II = sum(Estagio.II, na.rm = TRUE),
-                                                           Estagio.III = sum(Estagio.III, na.rm = TRUE),
-                                                           Estagio.IV = sum(Estagio.IV, na.rm = TRUE)) %>% drop_na(P4,E2)
-
- # %>%
- #        filter(E2!= 0 & P4 != 0)
-
-# cria coluna com soma de quant. foliculos por linha e faz transformacao log
-est["total"] <- rowSums(est[3:6])
-est["E2"] <-est["E2"]+k
-est["P4"] <-est["P4"]+k
-est["log_E2"] <-log(est["E2"])
-est["log_P4"] <-log(est["P4"])
-est
-# Vetor com o nome dos estagios
-Estagios <- c("Estagio_I","Estagio_II","Estagio_III","Estagio_IV")
-Hormonios <- c("E2","P4")
-
-# Cria uma coluna pra cada estagio com proporcao respectiva
-for(i in 1:length(Estagios)){
-  est[paste0("Prop_",Estagios[i])] <- est[i+2]/est["total"]
-}
-
-# retira linhas em que nao ha nenhum folicullo, pois a divisao 0/0 eh indefinido
-est <- est %>% filter(total != 0) 
-
-# plota grafico log E2 x proporcao estagios e log P4 x proporcao estagios
-par(mfrow=c(1,2))
-legenda <- c("Estagio 1","Estagio 2","Estagio 3","Estagio 4")
-
-for (j in 1:length(Hormonios)) {
-  with(est,plot(eval(parse(text = paste0("log_",Hormonios[j]))),
-                Prop_Estagio_I,
-                xlab = paste0("log(",Hormonios[j],")"), ylab = "% de foliculos", 
-                ylim = c(0,1),pch = 16, col=cores[1]))
-  
-  for (i in 1:length(Estagios)) {
-    with(est,points(eval(parse(text = paste0("log_",Hormonios[j]))),
-                    eval(parse(text = paste0("Prop_",Estagios[i]))),
-                    col=cores[i], pch=16))
-    
-    with(est,lines(smooth.spline(eval(parse(text = paste0("log_",Hormonios[j])))
-                                 ,eval(parse(text = paste0("Prop_",Estagios[i])))
-                                 ,df=3), col=cores[i], pch=16))
-  }
-  legend("topright",inset = 0, legend = legenda, col = cores[1:4], lty=1,cex=0.8,box.lty=0,bg="transparent")
-}
-
-```
-
-### Grafico: Perfis de Medias de acordo com os 2 fatores
-```{r}
-#Grafico: Perfis de Medias de acordo com os 2 fatores
-df <- pivot_longer(dados, cols=5:8, names_to = "Estagio", values_to = "Quantidade")
-df["oviduto"] <- NULL
-df <- df %>% drop_na()
-# df %>% group_by(P4,estacoes,Estagio) %>% summarise(Quantidade = mean(Quantidade))
-# with(est, interaction.plot(factor(f1),factor(f2),E2,main="Grafico de interacao")) #var explicativa, id, resp
-df
-with(df, interaction.plot(factor(estacoes), factor(Estagio), 
-                           response = logP4, col = cores))
-with(df, interaction.plot(factor(estacoes), factor(Estagio), 
-                           response = logE2, col = cores))
-```
-
-
-## Modelagem (Arquivo modelagem enviado dia 20/06/2021)
-### Bibliotecas
-```{r}
 ## Modelagem 
-library(glmm)
-library(glmmTMB)
-library(readxl)
-library(ggplot2)
-library(RColorBrewer)
-library("summarytools")
-library(dplyr)
-library(tidyr)
-library(nlme)
-library(lme4)
-library(gamlss)
-require(dglm)
-#install.packages("DHARMa")
-require(MASS)
-library(effects)
-
-require(pscl)
-# remotes::install_github("nyiuab/NBZIMM")
-library(NBZIMM)
-# remotes::install_github("nyiuab/NBZIMM")
-# devtools::install_github(repo = "florianhartig/DHARMa", subdir = "DHARMa", 
-                         # dependencies = T, build_vignettes = T)
-library(DHARMa)
-```
-
-### Dados
+### Dados ----
 ```{r}
 dados<- read_excel("dados_organizados.xlsx")
 
@@ -471,470 +369,362 @@ dados<- data.frame(dados)
 dados<-dados[, c(-3)]
 
 dados$data<- as.Date(dados$data)
-
-
-
-#Criando a variavel de estacoes do ano
-dados['estacoes'] <- rep(c('outono', 'outono', 'outono', 'inverno', 'inverno', 'primavera', 
-                           'primavera', 'verao', 'verao', 'verao', 'outono', 'inverno', 'inverno', 'primavera', 'primavera'), 6)
-dados
 ```
 
-### Modelagem estagios
-Define banco de dados est que contem informacao dos dois hormonios, estagios, data, estacoes e femea
+
+
+#### Criando a variavel de estacoes do ano ----
 ```{r}
-#### ESTAGIOS ############################
-dados$femea <- factor(dados$femea)
+estacoes <- rep(c('outono', 'outono', 'outono', 'inverno', 'inverno', 'primavera', 
+                  'primavera', 'verao', 'verao', 'verao', 'outono', 'inverno', 'inverno', 'primavera', 'primavera'), 6)
+dados['estacoes']<-factor(estacoes)
+
+View(dados)
+
 est <- dados[, c("E2", "P4","Estagio.I","Estagio.II","Estagio.III", 
                  "Estagio.IV","data", "estacoes", "femea")]
 ```
 
-#### Modelagem Estagio I
-##### Modelagem Estagio I - Binomial negativa com efeito aleatorio de serpente e interacao entre estacoes e E2 - gamlss
+
+##################################################################
+
+### Modelagem -  Estagio 1 ----
+#### Estagio 1 - Inverno de referencia ----
+
+
 ```{r}
-#### Estagio I ####
-ajuste1 = gamlss(Estagio.I ~ estacoes + E2 + estacoes:E2 + re(random=~1|factor(femea)),
-                 family=NBI, data=na.omit(est))
-summary(ajuste1)
+est$estacoes = relevel(est$estacoes, ref = "inverno") # define a casela de referencia
+fit1_inverno <- glmer.nb(Estagio.I ~ estacoes+E2+ estacoes:E2 +(1|femea), data=na.omit(est))
+summary(fit1_inverno)
 ```
 
-Usando o stepAIC parece que a modelagem por femea nao foi modelada (?)
+
+#### Estagio 1 - ANOVA----
+
 ```{r}
-stepAIC(ajuste1)
+car::Anova(fit1_inverno)
 ```
 
-Diagnostico
-```{r}
-plot(ajuste1)
-wp(ajuste1)
-```
+#### Estagio 1 - Residuos Dharma ----
 
-##### Modelagem Estagio I - # matriz de covariancia e variancia (Sigma)
 ```{r}
-vcov(ajuste1) # matriz de covariancia e variancia (Sigma)
-```
-
-##### algumas coisas que eu nao sei
-```{r}
-term.plot(ajuste1)  # o que acontece?
-```
-
-##### algumas coisas que eu nao sei
-```{r}
-dtop(ajuste1)
-Q.stats(ajuste1)
-rqres.plot(ajuste1, howmany=6, type="wp")
-rqres.plot(ajuste1, howmany=6, type="QQ")
-summary(getSmo(ajuste1))
-```
-
-##### Modelagem Estagio I - Binomial Negativa com efeito aleatorio de serpente e interacao entre estacoes e E2 - gmler
-```{r}
-fit1 <- glmer.nb(Estagio.I ~ estacoes+E2+ estacoes:E2 +(1|femea), data=na.omit(est))
-summary(fit1)
-plot(fit1)
-```
-
-##### Modelagem Estagio I - Binomial Negativa com efeito aleatorio de serpente e interacao entre estacoes e E2 - um monte de coisa que eu nao sei
-```{r}
-testDispersion(fit1)
-simulationOutput <- simulateResiduals(fittedModel=fit1, plot = F)
+simulationOutput <- simulateResiduals(fittedModel=fit1_inverno, plot = F)
 residuals(simulationOutput)
 residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
 plot(simulationOutput)
-#esq: teste KS, se a dist e correta, 
-#dir: residuos e ajustado, vermelhos sao outliers,
-
-testUniformity(simulationOutput)  #testa se a distribuicao escolhida faz sentido
-testOutliers(simulationOutput)
-testDispersion(simulationOutput)
-testCategorical(simulationOutput, catPred = na.omit(est)$estacoes) #residuo em variavies categoricas
-
-predictorEffects(fit1)
-plot(predictorEffect(c('E2', 'estacoes'), fit1, residuals=TRUE),
-     partial.residual = list(lty='dashed'))
-inf<-influence(fit1)
-car::leveneTest(est$Estagio.I, est$estacoes) #teste de Levene pra igualdade das variancias
 ```
 
-##### Modelagem Estagio I - Binomial Negativa com efeito aleatorio de serpente e interacao entre estacoes e E2 -  distancia de cook
+#### Estagio 1 - Outono de referencia ----
+
 ```{r}
-## cook:
-car::influenceIndexPlot(inf, vars='cookd')
-car::influenceIndexPlot(inf, vars="var.cov.comps") #efeitos aleatorios em cook
+est$estacoes = relevel(est$estacoes, ref = "outono")
+fit1_outono <- glmer.nb(Estagio.I ~ estacoes+E2+ estacoes:E2 +(1|femea), data=na.omit(est))
+summary(fit1_outono)
 ```
 
-##### Modelagem Estagio I - Binomial Negativa com efeito aleatorio de serpente e interacao entre estacoes e E2 -  dfbetas(?)
+#### Estagio 1 - Primavera de referencia ----
 
 ```{r}
-car::influenceIndexPlot(inf, vars="dfbeta")
-car::influenceIndexPlot(inf, vars="dfbetas")
-
-car::influenceIndexPlot(inf)
+est$estacoes = relevel(est$estacoes, ref = "primavera")
+fit1_primavera <- glmer.nb(Estagio.I ~ estacoes+E2+ estacoes:E2 +(1|femea), data=na.omit(est))
+summary(fit1_primavera)
 ```
 
-#### Modelagem Estagio II
+#### Estagio 1 - Verao de referencia ----
+
 ```{r}
-#### Estagio II ####
-ajuste2 = gamlss(Estagio.II ~ estacoes + E2 + estacoes:E2 + re(random=~1|factor(femea)),
-                 family=NBI, data=na.omit(est))
-summary(ajuste2)
-stepAIC(ajuste2)
+est$estacoes = relevel(est$estacoes, ref = "verao")
+fit1_verao <- glmer.nb(Estagio.I ~ estacoes+E2+ estacoes:E2 +(1|femea), data=na.omit(est))
+summary(fit1_verao)
+```
 
-ajuste2_1<-gamlss(formula = Estagio.II ~(re(random = ~1 | factor(femea))),  
-                  family = NBI, data = na.omit(est)) 
-summary(ajuste2_1)
-plot(ajuste2_1)
-wp(ajuste2_1)
+#### Estagio 1 - exponecializa e transforma em tabela ----
 
-vcov(ajuste2_1)
-term.plot(ajuste2_1)  # o que acontece?
-dtop(ajuste2_1)
-Q.stats(ajuste2_1)
-rqres.plot(ajuste2_1, howmany=6, type="wp")
-rqres.plot(ajuste2_1, howmany=6, type="QQ")
-summary(getSmo(ajuste2_1))
+```{r}
+#### inverno ----
+tab_model(fit1_inverno, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
 
-fit2_1 <- glmer.nb(Estagio.II ~  (1|femea), data=na.omit(est))
-summary(fit2_1)
-plot(fit2_1)
+##### Outono ----
+tab_model(fit1_outono, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
 
+##### primavera ----
+tab_model(fit1_primavera, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
 
-testDispersion(fit2_1)
-simulationOutput <- simulateResiduals(fittedModel=fit2_1, plot = F)
+##### verao ----
+tab_model(fit1_verao, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
+```
+
+#######################################################
+### Modelagem -  Estagio 2 ----
+
+```{r}
+est$estacoes = relevel(est$estacoes, ref = "inverno")
+fit2_inverno <- glmer.nb(Estagio.II ~ E2 * estacoes+  (1|femea), data=na.omit(est))
+summary(fit2_inverno)
+```
+
+#### Estagio 2 - Anova ----
+
+```{r}
+car::Anova(fit2_inverno)
+```
+
+#### Estagio 2 - modelo so com intercepto ----
+
+```{r}
+fit2_reduzido <- glmer.nb(Estagio.II ~ (1|femea), data=na.omit(est))
+```
+
+#### Estagio 2 - Residuos Dharma ----
+
+```{r}
+simulationOutput <- simulateResiduals(fittedModel=fit2_reduzido, plot = F)
 residuals(simulationOutput)
 residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
 plot(simulationOutput)
-#esq: teste KS, se a dist e correta, 
-#dir: residuos e ajustado, vermelhos sao outliers,
-
-testUniformity(simulationOutput)  #testa se a distribuicao escolhida faz sentido
-testOutliers(simulationOutput)
-testDispersion(simulationOutput)
-testCategorical(simulationOutput, catPred = na.omit(est)$estacoes) #residuo em variavies categoricas
-
-#predictorEffects(fit2_1)
-#plot(predictorEffect(c('estacoes'), fit2_1, residuals=TRUE),
-     #partial.residual = list(lty='dashed'))
-inf<-influence(fit2_1)
-car::leveneTest(est$Estagio.II, est$estacoes) #teste de Levene pra igualdade das variancias
-
-## cook:
-car::influenceIndexPlot(inf, vars='cookd')
-car::influenceIndexPlot(inf, vars="var.cov.comps") #efeitos aleatorios em cook
-
-car::influenceIndexPlot(inf, vars="dfbeta")
-car::influenceIndexPlot(inf, vars="dfbetas")
-
-car::influenceIndexPlot(inf)
 ```
 
-#### Modelagem Estagio III
+#######################################################
+### Dados para modelagem estagio III e IV
+
+agrupando estagios III e IV
 ```{r}
-#### Estagio III ####
-ajuste3 = gamlss(Estagio.III ~ estacoes + E2  + P4+ estacoes:E2 +
-                   + estacoes:P4 + P4:E2 + re(random=~1|factor(femea)), family=NBI, data=na.omit(est))
-summary(ajuste3)
-stepAIC(ajuste3)
+est['inv_prim'] = (ifelse(est$estacoes=='verao' | est$estacoes=='outono', 0, 1))
+```
 
-ajuste3_1 = gamlss(Estagio.III ~ estacoes   +E2 + P4+ estacoes:E2 +
-                   + estacoes:P4 +  re(random= ~1|factor(femea)), family=NBI, data=na.omit(est))
-summary(ajuste3_1)
+### Modelagem -  Estagio 3
+#### Estagio 3 - modelo completo com interacao ----
 
-ajuste3_2 = gamlss(Estagio.III ~ estacoes   +P4
-                     + estacoes:P4 +  re(random= ~1|factor(femea)), family=NBI, data=na.omit(est))
-summary(ajuste3_2)
+```{r}
+fit3_completo0 <- glmmTMB(Estagio.III ~ estacoes*E2+P4 +(1 | femea),
+                          data=na.omit(est), 
+                          family=nbinom1(link="log"))
+```
 
+#### Estagio 3 - ANOVA----
 
-ajuste3_3 = gamlss(Estagio.III ~ estacoes   +E2
-                   + estacoes:E2 +  re(random= ~1|factor(femea)), family=NBI, data=na.omit(est))
-summary(ajuste3_3)
+#### Estagio 3 - modelo completo sem interacao ----
 
 
-ajuste3_4 = gamlss(Estagio.III ~ estacoes   +E2+ P4+ re(random= ~1|factor(femea)), family=NBI, data=na.omit(est))
-summary(ajuste3_4)
+```{r}
+car::Anova(fit3_completo0)
+est$estacoes = relevel(est$estacoes, ref = "verao")
+fit3_completo <- glmmTMB(Estagio.III ~ estacoes+E2+P4 +(1 | femea),
+                         data=na.omit(est), 
+                         family=nbinom1(link="log"))
+summary(fit3_completo)
+```
 
-ajuste3_5 = gamlss(Estagio.III ~ estacoes   +E2+  re(random= ~1|factor(femea)), family=NBI, data=na.omit(est))
-summary(ajuste3_5)
-plot(ajuste3_5)
-wp(ajuste3_5)
-
-vcov(ajuste3_5)
-term.plot(ajuste3_5)  # o que acontece?
-dtop(ajuste3_5)
-Q.stats(ajuste3_5)
-rqres.plot(ajuste3_5, howmany=6, type="wp")
-rqres.plot(ajuste3_5, howmany=6, type="QQ")
-summary(getSmo(ajuste3_5))
+#### Estagio 3 - Modelo reduzido
 
 
-fit3 <- glmer.nb(Estagio.III ~ estacoes+E2
-                 + (1|femea), data=na.omit(est))
-summary(fit3)
-plot(fit3)
+```{r}
+est$estacoes = relevel(est$estacoes, ref = "inverno")
+fit3_reduzido <- glmmTMB(Estagio.III ~ inv_prim+E2+P4 +(1 | femea),
+                         data=na.omit(est), 
+                         family=nbinom1(link="log"))
+summary(fit3_reduzido)
+```
 
-testDispersion(fit3)
-simulationOutput <- simulateResiduals(fittedModel=fit3, plot = F)
+#### Estagio 3 -  teste razao de verossimilhanca ----
+
+```{r}
+lrtest( fit3_reduzido, fit3_completo)
+## p valor alto -> usar o modelo reduzido
+```
+
+#### Estagio 3 - Residuos Dharma ----
+
+```{r}
+simulationOutput <- simulateResiduals(fittedModel=fit3_reduzido, plot = F)
 residuals(simulationOutput)
 residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
 plot(simulationOutput)
-#esq: teste KS, se a dist e correta, 
-#dir: residuos e ajustado, vermelhos sao outliers,
+```
 
-testUniformity(simulationOutput)  #testa se a distribuicao escolhida faz sentido
-testOutliers(simulationOutput)
-testDispersion(simulationOutput)
-testCategorical(simulationOutput, catPred = na.omit(est)$estacoes) #residuo em variavies categoricas
+#### Estagio 3 - exponecializa e transforma em tabela ----
 
-predictorEffects(fit3)
-#plot(predictorEffect(c('estacoes'), fit2_1, residuals=TRUE),
-#partial.residual = list(lty='dashed'))
-inf<-influence(fit3)
-car::leveneTest(est$Estagio.III, est$estacoes) #teste de Levene pra igualdade das variancias
+```{r}
+# modelo completo
+tab_model(fit3_completo, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
 
-## cook:
-car::influenceIndexPlot(inf, vars='cookd')
-car::influenceIndexPlot(inf, vars="var.cov.comps") #efeitos aleatorios em cook
+# modelo reduzido
+tab_model(fit3_reduzido, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
+```
 
-car::influenceIndexPlot(inf, vars="dfbeta")
-car::influenceIndexPlot(inf, vars="dfbetas")
-
-car::influenceIndexPlot(inf) 
+#########################################################################
+### Modelagem -  Estagio 4
+#### Estagio 4 - modelo completo ----
 
 
-###inflado em zeros:
+```{r}
+est$estacoes = relevel(est$estacoes, ref = "verao")
+fit4_completo <- glmer.nb(Estagio.IV ~ estacoes+E2+P4 + (1 | femea),
+                          data=na.omit(est))
+summary(fit4_completo)
+```
 
-fit3_1<- glmm.zinb(Estagio.III ~ estacoes+E2, random = ~ 1 | femea,
-                   data=na.omit(est)) 
-summary(fit3_1)
-plot(fit3_1)
+#### Estagio 4 - ANOVA----
 
-fit3_1<- glmmTMB(Estagio.III ~ estacoes+E2+(1 | femea),
-                   data=na.omit(est), family=list(family="nbinom1",link="log")) 
-summary(fit3_1)
+```{r}
+fit4_completo0 <- glmer.nb(Estagio.IV ~ estacoes*E2+P4 + (1 | femea),
+                          data=na.omit(est))
 
-testDispersion(fit3_1)
-simulationOutput <- simulateResiduals(fittedModel=fit3_1, plot = F)
+car::Anova(fit4_completo0)
+```
+
+#### Estagio 4 - modelo reduzido ----
+
+```{r}
+est$estacoes = relevel(est$estacoes, ref = "inverno")
+fit4_reduzido <- glmer.nb(Estagio.IV ~ inv_prim+E2+P4 +(1 | femea),
+                          data=na.omit(est))
+summary(fit4_reduzido)
+```
+
+#### Estagio 4 - Teste razao de verossimilhanca ----
+
+```{r}
+lrtest( fit4_reduzido, fit4_completo)
+```
+
+#### Estagio 4 - Residuos Dharma ----
+
+```{r}
+simulationOutput <- simulateResiduals(fittedModel=fit4_reduzido, plot = F)
 residuals(simulationOutput)
 residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
 plot(simulationOutput)
-testUniformity(simulationOutput)  #testa se a distribuicao escolhida faz sentido
-testOutliers(simulationOutput)
-testDispersion(simulationOutput)
-testCategorical(simulationOutput, catPred = na.omit(est)$estacoes) #residuo em variavies categoricas
-predictorEffects(fit3_1)
-plot(predictorEffect(c('estacoes'), fit3_1, residuals=TRUE),
-partial.residual = list(lty='dashed'))
-
-source(system.file("other_methods","influence_mixed.R", package="glmmTMB"))
-influence_time <- system.time(
-  inf <- influence_mixed(fit3_1)
-)
-
-
-## cook:
-car::influenceIndexPlot(inf, vars='cookd')
-car::influenceIndexPlot(inf, vars="var.cov.comps") #efeitos aleatorios em cook
-
-car::influenceIndexPlot(inf, vars="dfbeta")
-car::influenceIndexPlot(inf, vars="dfbetas")
-
-car::influenceIndexPlot(inf)
 ```
 
-#### Modelagem Estagio IV
+#### Estagio 4 - exponecializa e transforma em tabela ----
+
 ```{r}
-#### ESTAGIO IV ####
-fit4 <- glmer.nb(Estagio.IV ~ estacoes+E2+ estacoes:E2+ (1|femea), data=na.omit(est))
-summary(fit4)
+tab_model(fit4_completo, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
 
-ajuste4 = gamlss(Estagio.IV ~ estacoes + E2 + estacoes:E2 + P4 +estacoes:P4 + P4:E2
-                 + re(random=~1|factor(femea)), family=NBI, data=na.omit(est))
-summary(ajuste4)
-stepAIC(ajuste4)
-plot(ajuste4)
-wp(ajuste4)
-
-ajuste4_1 = gamlss(Estagio.IV ~ estacoes + E2 + estacoes:E2 + P4 + P4:E2
-                 + re(random=~1|factor(femea)), family=NBI, data=na.omit(est))
-summary(ajuste4_1)
-
-ajuste4_2 = gamlss(Estagio.IV ~ estacoes + E2 + estacoes:E2 + P4 
-                 + re(random=~1|factor(femea)), family=NBI, data=na.omit(est))
-summary(ajuste4_2)
-
-ajuste4_3 = gamlss(Estagio.IV ~ estacoes +E2 + P4 
-                   + re(random=~1|factor(femea)), family=NBI, data=na.omit(est))
-summary(ajuste4_3)
-plot(ajuste4_3)
-wp(ajuste4_3)
-
-vcov(ajuste4_3)
-term.plot(ajuste4_3)  # o que acontece?
-dtop(ajuste4_3)
-Q.stats(ajuste4_3)
-rqres.plot(ajuste4_3, howmany=6, type="wp")
-rqres.plot(ajuste4_3, howmany=6, type="QQ")
-summary(getSmo(ajuste4_3))
-
-fit4 <- glmer.nb(Estagio.IV ~ estacoes+E2+P4 +  (1|femea), data=na.omit(est))
-summary(fit4)
-
-plot(fit4)
-
-testDispersion(fit4)
-simulationOutput <- simulateResiduals(fittedModel=fit4, plot = F)
-residuals(simulationOutput)
-residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
-plot(simulationOutput)
-#esq: teste KS, se a dist e correta, 
-#dir: residuos e ajustado, vermelhos sao outliers,
-
-testUniformity(simulationOutput)  #testa se a distribuicao escolhida faz sentido
-testOutliers(simulationOutput)
-testDispersion(simulationOutput)
-testCategorical(simulationOutput, catPred = na.omit(est)$estacoes) #residuo em variavies categoricas
-
-predictorEffects(fit4)
-plot(predictorEffect(c('estacoes'), fit4, residuals=TRUE),
-partial.residual = list(lty='dashed'))
-inf<-influence(fit4)
-car::leveneTest(est$Estagio.IV, est$estacoes) #teste de Levene pra igualdade das variancias
-
-## cook:
-car::influenceIndexPlot(inf, vars='cookd')
-car::influenceIndexPlot(inf, vars="var.cov.comps") #efeitos aleatorios em cook
-
-#calcula um valor de diferenca pra regressao sem cada ponto
-car::influenceIndexPlot(inf, vars="dfbeta")
-car::influenceIndexPlot(inf, vars="dfbetas")
-
-car::influenceIndexPlot(inf)
+tab_model(fit4_reduzido, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
 ```
 
-### Modelagem Hormonios
-#### Progesterona
-```{r}
-#### HORMONIOS #######################
+####################################################
+### Modelagem - hormonios ----
+### Banco de dados para modelagem dos hormonios
 
-progesterona <- dados[, c("femea","P4", 'E2',"Estagio.I","Estagio.II","Estagio.III", 
-                          "Estagio.IV","data", "estacoes")]
+```{r}
+progesterona <- dados[, c("femea","P4", 'E2', "estacoes")]
 
 progesterona <- progesterona %>% drop_na(P4)
-
-#### Progesterona ####
-prog_1<-gamlss(formula = P4~ estacoes
-           + re(random=~1|factor(femea)), family = IG,
-           data = na.omit(progesterona))
-summary(prog_1)
-plot(prog_1)
-wp(prog_1)
-rqres.plot(prog_1, howmany=4, type="wp")
-prog_1$mu.coefSmo
-summary(getSmo(prog_1))
-ranef0 = ranef(getSmo(prog_1))$"(Intercept)"
-plot(density(ranef0))
-
-vcov(prog_1)
-term.plot(prog_1)  # o que acontece?
-dtop(prog_1)
-Q.stats(prog_1)
-rqres.plot(prog_1, howmany=6, type="wp")
-rqres.plot(prog_1, howmany=6, type="QQ")
-
-
-fit6 <- glmer(P4~ estacoes +(1|femea), data=na.omit(est),
-              family=inverse.gaussian(link="log"))
-summary(fit6)
-plot(fit6)
-
-testDispersion(fit6)
-simulationOutput <- simulateResiduals(fittedModel=fit6, plot = F)
-residuals(simulationOutput)
-residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
-plot(simulationOutput)
-#esq: teste KS, se a dist e correta, 
-#dir: residuos e ajustado, vermelhos sao outliers,
-
-testUniformity(simulationOutput)  #testa se a distribuicao escolhida faz sentido
-testOutliers(simulationOutput)
-testDispersion(simulationOutput)
-testCategorical(simulationOutput, catPred = na.omit(est)$estacoes) #residuo em variavies categoricas
-
-predictorEffects(fit6)
-plot(predictorEffect(c('estacoes'), fit6, residuals=TRUE),
-     partial.residual = list(lty='dashed'))
-infp<-influence(fit6)
-car::leveneTest(est$P4, est$estacoes) #teste de Levene pra igualdade das variancias
-
-## cook:
-car::influenceIndexPlot(infp, vars='cookd')
-car::influenceIndexPlot(infp, vars="var.cov.comps") #efeitos aleatorios em cook
-
-#calcula um valor de diferenca pra regressao sem cada ponto
-car::influenceIndexPlot(infp, vars="dfbeta")
-car::influenceIndexPlot(infp, vars="dfbetas")
-
-car::influenceIndexPlot(infp)
 ```
 
-#### Estradiol
+### Modelagem -  Progesterona
+#### Progesterona - Inverno de referencia ----
+
 ```{r}
-#### Estradiol ############################
-estra_1<-gamlss(formula = (E2+1)~ estacoes
-               + re(random=~1|factor(femea)), family = IG,
-               data = na.omit(progesterona))
-summary(estra_1)
-plot(estra_1)
-wp(estra_1)
-rqres.plot(estra_1, howmany=4, type="wp")
-mod4$mu.coefSmo
-summary(getSmo(estra_1))
-ranef0 = ranef(getSmo(estra_1))$"(Intercept)"
-plot(density(ranef0))
+progesterona$estacoes = relevel(progesterona$estacoes, ref = "verao")
+fit5_completo <- glmer(P4~ estacoes +(1|femea), data=na.omit(progesterona),
+                       family=inverse.gaussian(link="log"))
+summary(fit5_completo)
+```
 
-vcov(estra_1)
-term.plot(estra_1)  # o que acontece?
-dtop(estra_1)
-Q.stats(estra_1)
-rqres.plot(estra_1, howmany=6, type="wp")
-rqres.plot(estra_1, howmany=6, type="QQ")
-summary(getSmo(estra_1))
+#### Progesterona - Outono ----
+```{r}
+progesterona['outono'] = (ifelse(progesterona$estacoes=='outono', 1, 0))
+fit5_reduzido <- glmer(P4~ outono +(1|femea), data=na.omit(progesterona),
+                       family=inverse.gaussian(link="log"))
+summary(fit5_reduzido)
+```
 
-fit7 <- glmer((E2+1)~ estacoes +(1|femea), data=na.omit(est),
-              family=inverse.gaussian(link="log"))
-summary(fit7)
+#### Progesterona - teste razao de verossimilhanca ----
 
-plot(fit7)
+```{r}
+lrtest(fit5_completo, fit5_reduzido)
+```
 
+#### Progesterona - Residuos Dharma ----
 
-testDispersion(fit7)
-simulationOutput <- simulateResiduals(fittedModel=fit7, plot = F)
+```{r}
+simulationOutput <- simulateResiduals(fittedModel=fit5_reduzido, plot = F)
 residuals(simulationOutput)
 residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
 plot(simulationOutput)
-#esq: teste KS, se a dist e correta, 
-#dir: residuos e ajustado, vermelhos sao outliers,
-
-testUniformity(simulationOutput)  #testa se a distribuicao escolhida faz sentido
-testOutliers(simulationOutput)
-testDispersion(simulationOutput)
-testCategorical(simulationOutput, catPred = na.omit(est)$estacoes) #residuo em variavies categoricas
-
-predictorEffects(fit7)
-#plot(predictorEffect(c('estacoes'), fit2_1, residuals=TRUE),
-#partial.residual = list(lty='dashed'))
-inf<-influence(fit7)
-car::leveneTest(est$E2, est$estacoes) #teste de Levene pra igualdade das variancias
-
-## cook:
-car::influenceIndexPlot(inf, vars='cookd')
-car::influenceIndexPlot(inf, vars="var.cov.comps") #efeitos aleatorios em cook
-
-car::influenceIndexPlot(inf, vars="dfbeta")
-car::influenceIndexPlot(inf, vars="dfbetas")
-
-car::influenceIndexPlot(inf) 
-
 ```
 
+#### Progesterona - exponecializa e transforma em tabela ----
+
+```{r}
+tab_model(fit5_completo, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
+
+tab_model(fit5_reduzido, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
+```
+
+#######################################################
+### Modelagem - Estradiol ----
+
+```{r}
+progesterona['inverno']<-(ifelse(progesterona$estacoes=='inverno', 1, 0))
+```
+
+#### Estradiol - modelo completo ----
+
+```{r}
+progesterona$estacoes = relevel(progesterona$estacoes, ref = "verao")
+fit6_completo <- glmer((E2+1)~ estacoes +(1|femea), data=na.omit(progesterona),
+                       family=inverse.gaussian(link="log"), control = glmerControl(tolPwrss=1e-6))
+
+summary(fit6_completo)
+```
+
+#### Estradiol - Modelo reduzido ----
+
+```{r}
+fit6_reduzido <- glmer((E2+1)~ inverno +(1|femea), data=na.omit(progesterona),
+                       family=inverse.gaussian(link="log"), control = glmerControl(tolPwrss=1e-6))
+
+summary(fit6_reduzido)
+```
+
+#### Estradiol - teste razao de verossimilhanca ----
+
+```{r}
+lrtest(fit6_completo, fit6_reduzido)
+```
+
+#### Estradiol - Residuos Dharma ----
+
+```{r}
+simulationOutput <- simulateResiduals(fittedModel=fit6_reduzido, plot = F)
+residuals(simulationOutput)
+residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
+plot(simulationOutput)
+```
+
+#### Estradiol - exponecializa e transforma em tabela ----
+
+```{r}
+tab_model(fit6_completo, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
+
+tab_model(fit6_reduzido, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+          show.reflvl = TRUE, digits = 3)
+```
