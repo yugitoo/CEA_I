@@ -496,15 +496,31 @@ est <- dados[, c("E2", "P4","Estagio.I","Estagio.II","Estagio.III",
 ajuste1 = gamlss(Estagio.I ~ estacoes + E2 + estacoes:E2 + re(random=~1|factor(femea)),
                  family=NBI, data=na.omit(est))
 summary(ajuste1)
+```
+
+Usando o stepAIC parece que a modelagem por femea nao foi modelada (?)
+```{r}
 stepAIC(ajuste1)
+```
+
+Diagnostico
+```{r}
 plot(ajuste1)
 wp(ajuste1)
 ```
 
-##### Modelagem Estagio I - algumas coisas que eu nao sei
+##### Modelagem Estagio I - # matriz de covariancia e variancia (Sigma)
 ```{r}
-vcov(ajuste1)
+vcov(ajuste1) # matriz de covariancia e variancia (Sigma)
+```
+
+##### algumas coisas que eu nao sei
+```{r}
 term.plot(ajuste1)  # o que acontece?
+```
+
+##### algumas coisas que eu nao sei
+```{r}
 dtop(ajuste1)
 Q.stats(ajuste1)
 rqres.plot(ajuste1, howmany=6, type="wp")
