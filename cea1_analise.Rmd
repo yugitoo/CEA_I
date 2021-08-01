@@ -278,7 +278,7 @@ profile <- ggplot(df, aes(x=data, y=Quantidade, group=femea)) +
   ylab("Quantidade de foliculos ovulares") +
   theme(axis.text.x = element_text(size=13)) +
   theme(axis.text.y = element_text(size=13)) +
-  facet_wrap(~Estágio)
+  facet_wrap(~Estagio)
 profile
 
 # Perfis medios por estacao
