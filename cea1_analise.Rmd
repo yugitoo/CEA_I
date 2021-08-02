@@ -273,7 +273,7 @@ profile <- ggplot(df, aes(x=data, y=Quantidade, group=femea)) +
   geom_point(aes(color = femea), size = 1.5) +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) +
   scale_x_date(date_breaks = "1 month", labels = date_format("%m-%Y")) +
-  stat_summary(fun.y=mean, geom="line",lwd=1.0, aes(group=Estágio)) +
+  stat_summary(fun.y=mean, geom="line",lwd=1.0, aes(group=Estagio)) +
   xlab("Data") +
   ylab("Quantidade de foliculos ovulares") +
   theme(axis.text.x = element_text(size=13)) +
@@ -344,14 +344,6 @@ print(tabelac, digits=3)
 tabelap <- prop.table(tab)
 tabelap
 
-#Coeficiente de contigencia
-coef_cont <- sqrt(chisq$statistic/(chisq$statistic+sum(tab)))
-coef_cont
-
-#Coeficiente de Tchusprov
-coef_tsch <- sqrt((chisq$statistic/sum(tab))/sqrt(9))
-coef_tsch
-
 #Analise de correspondecia
 ac <- ca(tab, nd=3)
 ac
@@ -404,6 +396,25 @@ summary(fit1_inverno)
 ```{r}
 car::Anova(fit1_inverno)
 ```
+#### Estagio 1 - Mudanca ----
+
+```{r}
+# construindo vetor com coeficientes
+betas        <- c(0,0.2598054,	-0.008356432,	0.8748152)
+names(betas) <- c('inv','out','pri','ver')
+
+# estimativas de mudanca de estacao
+mudanca <- c()
+mudanca[1] <- betas['ver']-betas['pri']
+mudanca[2] <- betas['pri']-betas['inv']
+mudanca[3] <- betas['inv']-betas['out']
+mudanca[4] <- betas['out']-betas['ver']
+
+names(mudanca) <- c("pri_ver", "inv_pri","out_inv","ver_out" )
+round(exp(mudanca),3)
+
+```
+
 
 #### Estagio 1 - Residuos Dharma ----
 
@@ -436,6 +447,24 @@ summary(fit1_primavera)
 est$estacoes = relevel(est$estacoes, ref = "verao")
 fit1_verao <- glmer.nb(Estagio.I ~ estacoes+E2+ estacoes:E2 +(1|femea), data=na.omit(est))
 summary(fit1_verao)
+```
+
+```{r}
+est$estacoes = relevel(est$estacoes, ref = "inverno")
+# sem interacao
+fit1_reduzido <- glmer.nb(Estagio.I ~ estacoes+E2 +(1|femea), data=na.omit(est)) 
+# tentanto agrupar inv e prim com interacao
+fit1_reduzido1 <- glmer.nb(Estagio.I ~ inv_prim*E2 +(1|femea), data=na.omit(est)) 
+# tentanto agrupar inv e prim sem interacao
+fit1_reduzido2 <- glmer.nb(Estagio.I ~ inv_prim+E2 +(1|femea), data=na.omit(est))
+summary(fit1_reduzido)
+```
+
+```{r}
+lrtest(fit1_reduzido, fit1_verao)
+lrtest(fit1_reduzido1, fit1_verao)
+lrtest(fit1_reduzido2, fit1_verao)
+## p valor baixo -> nao usar o modelo reduzido
 ```
 
 #### Estagio 1 - exponecializa e transforma em tabela ----
@@ -504,31 +533,37 @@ est['inv_prim'] = (ifelse(est$estacoes=='verao' | est$estacoes=='outono', 0, 1))
 #### Estagio 3 - modelo completo com interacao ----
 
 ```{r}
+est$estacoes = relevel(est$estacoes, ref = "verao")
 fit3_completo0 <- glmmTMB(Estagio.III ~ estacoes*E2+P4 +(1 | femea),
                           data=na.omit(est), 
                           family=nbinom1(link="log"))
+summary(fit3_completo0)
 ```
 
 #### Estagio 3 - ANOVA----
 
-#### Estagio 3 - modelo completo sem interacao ----
-
-
 ```{r}
 car::Anova(fit3_completo0)
-est$estacoes = relevel(est$estacoes, ref = "verao")
-fit3_completo <- glmmTMB(Estagio.III ~ estacoes+E2+P4 +(1 | femea),
-                         data=na.omit(est), 
-                         family=nbinom1(link="log"))
-summary(fit3_completo)
+
 ```
+
+<!-- #### Estagio 3 - modelo completo sem interacao ---- -->
+
+
+<!-- ```{r} -->
+<!-- est$estacoes = relevel(est$estacoes, ref = "verao") -->
+<!-- fit3_completo <- glmmTMB(Estagio.III ~ estacoes+E2+P4 +(1 | femea), -->
+<!--                          data=na.omit(est),  -->
+<!--                          family=nbinom1(link="log")) -->
+<!-- summary(fit3_completo) -->
+<!-- ``` -->
 
 #### Estagio 3 - Modelo reduzido
 
 
 ```{r}
 est$estacoes = relevel(est$estacoes, ref = "inverno")
-fit3_reduzido <- glmmTMB(Estagio.III ~ inv_prim+E2+P4 +(1 | femea),
+fit3_reduzido <- glmmTMB(Estagio.III ~ inv_prim*E2+P4 +(1 | femea),
                          data=na.omit(est), 
                          family=nbinom1(link="log"))
 summary(fit3_reduzido)
@@ -537,7 +572,7 @@ summary(fit3_reduzido)
 #### Estagio 3 -  teste razao de verossimilhanca ----
 
 ```{r}
-lrtest( fit3_reduzido, fit3_completo)
+lrtest(fit3_reduzido, fit3_completo0)
 ## p valor alto -> usar o modelo reduzido
 ```
 
@@ -554,7 +589,7 @@ plot(simulationOutput)
 
 ```{r}
 # modelo completo
-tab_model(fit3_completo, show.se = TRUE, string.est = "Estimativa",
+tab_model(fit3_completo0, show.se = TRUE, string.est = "Estimativa",
           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
           show.reflvl = TRUE, digits = 3)
 
