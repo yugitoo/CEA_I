@@ -2,7 +2,11 @@
 title: "Analise dos Dados"
 author: "Hei, Karine e Yugo"
 date: "06/06/2021"
-output: pdf_document
+output:
+  bookdown::pdf_document2:
+    latex_engine: lualatex
+  tufte::tufte_handout:
+    latex_engine: xelatex
 ---
 
 <!-- output: word_document -->
@@ -55,8 +59,8 @@ library(DHARMa)
 
 ### Definicao de Funcoes
 
-* **painel.hist** funcao que sera utilizada para a matriz de dispersao e correlacao.
-* **painel.cor** funcao que sera utilizada para a matriz de dispersao e correlacao.
+**painel.hist** funcao que sera utilizada para a matriz de dispersao e correlacao.
+**painel.cor** funcao que sera utilizada para a matriz de dispersao e correlacao.
 
 
 ```{r}
@@ -97,7 +101,7 @@ panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...) {
 dados<- read_excel("dados_organizados.xlsx")
 
 dados<- data.frame(dados)
-dados<-dados[, c(-3)]  #exclir a variavel resferente ao numero da amostra usada pelo laboratorio
+dados<-dados[, c(-3)]  #excluir a variavel resferente ao numero da amostra usada pelo laboratorio
 dados$data<- as.Date(dados$data)
 
 
@@ -107,13 +111,13 @@ dados['estacoes'] <- rep(c('outono', 'outono', 'outono', 'inverno', 'inverno', '
                            'primavera', 'verao', 'verao', 'verao', 'outono', 'inverno', 'inverno', 'primavera', 'primavera'), 6)
 
 #Transformacao log
-dados['P4']<-dados['P4']+1
-dados['E2']<-dados['E2']+1
+dados['P4']<-dados['P4']
+dados['E2']<-dados['E2']+0.1
 
 dados['logP4']<-log(dados$P4)
 dados['logE2']<-log(dados$E2)
 
-dados #visualizar os dados
+head(dados) #visualizar os dados
 attach(dados)
 ```
 
@@ -131,7 +135,7 @@ dados %>% descr(., stats = c('mean','sd', 'min', 'q1', 'med', 'q3', 'max'), just
 ### Dispersoes
 
 
-```{r descritiva}
+```{r dispersao}
 plot(dados[,c(3,4,5,6,7,8)] , pch=16 , cex=1.5 , col="#69b3a2")
 
 ```
@@ -139,7 +143,7 @@ plot(dados[,c(3,4,5,6,7,8)] , pch=16 , cex=1.5 , col="#69b3a2")
 ### Densidades
 
 
-```{r descritiva}
+```{r densidade}
 a <-ggplot(dados, aes(x=P4)) + 
   geom_density(color="darkblue", fill="lightblue")
 b <-ggplot(dados, aes(x=E2)) + 
@@ -371,13 +375,19 @@ estacoes <- rep(c('outono', 'outono', 'outono', 'inverno', 'inverno', 'primavera
                   'primavera', 'verao', 'verao', 'verao', 'outono', 'inverno', 'inverno', 'primavera', 'primavera'), 6)
 dados['estacoes']<-factor(estacoes)
 
-View(dados)
+head(dados)
 
 est <- dados[, c("E2", "P4","Estagio.I","Estagio.II","Estagio.III", 
                  "Estagio.IV","data", "estacoes", "femea")]
 ```
 
 
+### Dados para modelagem estagio III e IV
+
+agrupando estagios III e IV
+```{r}
+est['inv_prim'] = (ifelse(est$estacoes=='verao' | est$estacoes=='outono', 0, 1))
+```
 ##################################################################
 
 ### Modelagem -  Estagio 1 ----
@@ -386,8 +396,14 @@ est <- dados[, c("E2", "P4","Estagio.I","Estagio.II","Estagio.III",
 
 ```{r}
 est$estacoes = relevel(est$estacoes, ref = "inverno") # define a casela de referencia
-fit1_inverno <- glmer.nb(Estagio.I ~ estacoes+E2+ estacoes:E2 +(1|femea), data=na.omit(est))
+# sem aplicar log nos hormonios
+fit1_inverno <- glmer.nb(Estagio.I ~ estacoes*E2+1 +(1|femea), data=na.omit(est))
+
+# aplicando log(x+1) nos hormonios
+fit1_invernol <- glmer.nb(Estagio.I ~ estacoes*log(E2+1) +(1|femea), data=na.omit(est))
+
 summary(fit1_inverno)
+summary(fit1_invernol)
 ```
 
 
@@ -395,31 +411,62 @@ summary(fit1_inverno)
 
 ```{r}
 car::Anova(fit1_inverno)
+car::Anova(fit1_invernol)
 ```
-#### Estagio 1 - Mudanca ----
+<!-- #### Estagio 1 - Mudanca ---- -->
+
+<!-- ```{r} -->
+<!-- # construindo vetor com coeficientes -->
+<!-- betas        <- c(0,0.2598054,	-0.008356432,	0.8748152) -->
+<!-- names(betas) <- c('inv','out','pri','ver') -->
+
+<!-- # estimativas de mudanca de estacao -->
+<!-- mudanca <- c() -->
+<!-- mudanca[1] <- betas['ver']-betas['pri'] -->
+<!-- mudanca[2] <- betas['pri']-betas['inv'] -->
+<!-- mudanca[3] <- betas['inv']-betas['out'] -->
+<!-- mudanca[4] <- betas['out']-betas['ver'] -->
+
+<!-- names(mudanca) <- c("pri_ver", "inv_pri","out_inv","ver_out" ) -->
+<!-- round(exp(mudanca),3) -->
+
+<!-- ``` -->
+
+#### Estagio 1 - Modelo reduzido
+```{r}
+# sem aplocar log
+est$estacoes = relevel(est$estacoes, ref = "inverno") # define a casela de referencia
+fit1_reduzido <- glmer.nb(Estagio.I ~ estacoes+E2 +(1|femea), data=na.omit(est))
+summary(fit1_reduzido)
+
+# aplicando log
+est$estacoes = relevel(est$estacoes, ref = "inverno") # define a casela de referencia
+fit1_reduzidol <- glmer.nb(Estagio.I ~ estacoes+log(E2+1) +(1|femea), data=na.omit(est))
+summary(fit1_reduzidol)
+
+```
+#### Estagio 1 -  teste razao de verossimilhanca ----
 
 ```{r}
-# construindo vetor com coeficientes
-betas        <- c(0,0.2598054,	-0.008356432,	0.8748152)
-names(betas) <- c('inv','out','pri','ver')
+# sem aplicar log
+lrtest(fit1_reduzido, fit1_inverno)
 
-# estimativas de mudanca de estacao
-mudanca <- c()
-mudanca[1] <- betas['ver']-betas['pri']
-mudanca[2] <- betas['pri']-betas['inv']
-mudanca[3] <- betas['inv']-betas['out']
-mudanca[4] <- betas['out']-betas['ver']
-
-names(mudanca) <- c("pri_ver", "inv_pri","out_inv","ver_out" )
-round(exp(mudanca),3)
-
+# aplicando log
+lrtest(fit1_reduzidol, fit1_invernol)
+## p valor alto -> usar o modelo reduzido
 ```
-
 
 #### Estagio 1 - Residuos Dharma ----
 
 ```{r}
+# sem aplicar log - modelo com interacao
 simulationOutput <- simulateResiduals(fittedModel=fit1_inverno, plot = F)
+residuals(simulationOutput)
+residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
+plot(simulationOutput)
+
+# aplicando log - modelo sem interacao
+simulationOutput <- simulateResiduals(fittedModel=fit1_reduzidol, plot = F)
 residuals(simulationOutput)
 residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
 plot(simulationOutput)
@@ -470,25 +517,29 @@ lrtest(fit1_reduzido2, fit1_verao)
 #### Estagio 1 - exponecializa e transforma em tabela ----
 
 ```{r}
-#### inverno ----
-tab_model(fit1_inverno, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
-
-##### Outono ----
-tab_model(fit1_outono, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
-
-##### primavera ----
-tab_model(fit1_primavera, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
-
-##### verao ----
-tab_model(fit1_verao, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
+# #### inverno ----
+# tab_model(fit1_inverno, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
+# 
+# tab_model(fit1_invernol, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
+# 
+# ##### Outono ----
+# tab_model(fit1_outono, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
+# 
+# ##### primavera ----
+# tab_model(fit1_primavera, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
+# 
+# ##### verao ----
+# tab_model(fit1_verao, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
 ```
 
 #######################################################
@@ -497,13 +548,17 @@ tab_model(fit1_verao, show.se = TRUE, string.est = "Estimativa",
 ```{r}
 est$estacoes = relevel(est$estacoes, ref = "inverno")
 fit2_inverno <- glmer.nb(Estagio.II ~ E2 * estacoes+  (1|femea), data=na.omit(est))
+fit2_invernol <- glmer.nb(Estagio.II ~ log(E2+1) * estacoes+  (1|femea), data=na.omit(est))
+
 summary(fit2_inverno)
+summary(fit2_invernol)
 ```
 
 #### Estagio 2 - Anova ----
 
 ```{r}
 car::Anova(fit2_inverno)
+car::Anova(fit2_invernol)
 ```
 
 #### Estagio 2 - modelo so com intercepto ----
@@ -513,7 +568,7 @@ fit2_reduzido <- glmer.nb(Estagio.II ~ (1|femea), data=na.omit(est))
 ```
 
 #### Estagio 2 - Residuos Dharma ----
-
+residuos do modelo apenas com intercepto
 ```{r}
 simulationOutput <- simulateResiduals(fittedModel=fit2_reduzido, plot = F)
 residuals(simulationOutput)
@@ -522,21 +577,23 @@ plot(simulationOutput)
 ```
 
 #######################################################
-### Dados para modelagem estagio III e IV
 
-agrupando estagios III e IV
-```{r}
-est['inv_prim'] = (ifelse(est$estacoes=='verao' | est$estacoes=='outono', 0, 1))
-```
 
 ### Modelagem -  Estagio 3
 #### Estagio 3 - modelo completo com interacao ----
 
 ```{r}
 est$estacoes = relevel(est$estacoes, ref = "verao")
+# aplicando log
+fit3_completo0l <- glmmTMB(Estagio.III ~ estacoes*log(E2+1)+log(P4) +(1 | femea),
+                          data=na.omit(est), 
+                          family=nbinom1(link="log"))
+# sem aplicar o log
 fit3_completo0 <- glmmTMB(Estagio.III ~ estacoes*E2+P4 +(1 | femea),
                           data=na.omit(est), 
                           family=nbinom1(link="log"))
+
+summary(fit3_completo0l)
 summary(fit3_completo0)
 ```
 
@@ -544,116 +601,209 @@ summary(fit3_completo0)
 
 ```{r}
 car::Anova(fit3_completo0)
+car::Anova(fit3_completo0l)
 
 ```
+Em ambos os casos a interação não sai
 
-<!-- #### Estagio 3 - modelo completo sem interacao ---- -->
-
-
-<!-- ```{r} -->
-<!-- est$estacoes = relevel(est$estacoes, ref = "verao") -->
-<!-- fit3_completo <- glmmTMB(Estagio.III ~ estacoes+E2+P4 +(1 | femea), -->
-<!--                          data=na.omit(est),  -->
-<!--                          family=nbinom1(link="log")) -->
-<!-- summary(fit3_completo) -->
-<!-- ``` -->
-
-#### Estagio 3 - Modelo reduzido
+#### Estagio 3 - modelo completo sem interacao ----
 
 
 ```{r}
+est$estacoes = relevel(est$estacoes, ref = "verao")
+fit3_completo <- glmmTMB(Estagio.III ~ estacoes+E2+P4 +(1 | femea),
+                         data=na.omit(est),
+                         family=nbinom1(link="log"))
+
+est$estacoes = relevel(est$estacoes, ref = "verao")
+fit3_completol <- glmmTMB(Estagio.III ~ estacoes+log(E2+1)+log(P4) +(1 | femea),
+                         data=na.omit(est),
+                         family=nbinom1(link="log"))
+
+summary(fit3_completo)
+summary(fit3_completol)
+```
+
+#### Estagio 3 - Modelo reduzido
+
+```{r}
 est$estacoes = relevel(est$estacoes, ref = "inverno")
+# sem aplicar o log nos hormonios
 fit3_reduzido <- glmmTMB(Estagio.III ~ inv_prim*E2+P4 +(1 | femea),
                          data=na.omit(est), 
                          family=nbinom1(link="log"))
+# aplicando o log nos hormonios
+fit3_reduzidol <- glmmTMB(Estagio.III ~ inv_prim*log(E2+1)+log(P4) +(1 | femea),
+                         data=na.omit(est), 
+                         family=nbinom1(link="log"))
+
 summary(fit3_reduzido)
+summary(fit3_reduzidol)
 ```
 
 #### Estagio 3 -  teste razao de verossimilhanca ----
 
 ```{r}
+# comparando os dois completos
+lrtest(fit3_completo, fit3_completo0)
+
+# comparando os dois sem aplicar log
 lrtest(fit3_reduzido, fit3_completo0)
+
+# comparando os dois que aplicaram log
+lrtest(fit3_reduzidol, fit3_completo0l)
+
 ## p valor alto -> usar o modelo reduzido
 ```
+
+Comparando so modelos em que se aplicou log nos hormonios, a 5% aceitamos o modelo reduzido, mas a 10% rejeitamos.
+
+Em todas as outras comparações, aceitamos os modelos reduzidos.
 
 #### Estagio 3 - Residuos Dharma ----
 
 ```{r}
+# sem aplicar log
 simulationOutput <- simulateResiduals(fittedModel=fit3_reduzido, plot = F)
 residuals(simulationOutput)
 residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
 plot(simulationOutput)
+
+# aplicando log
+simulationOutput <- simulateResiduals(fittedModel=fit3_reduzidol, plot = F)
+residuals(simulationOutput)
+residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
+plot(simulationOutput)
+
 ```
 
 #### Estagio 3 - exponecializa e transforma em tabela ----
 
 ```{r}
-# modelo completo
-tab_model(fit3_completo0, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
-
-# modelo reduzido
-tab_model(fit3_reduzido, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
+# # modelo completo sem aplicar log
+# tab_model(fit3_completo0, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
+# 
+# # modelo reduzido sem aplicar log
+# tab_model(fit3_reduzido, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
+# 
+# # modelo completo aplicando log
+# tab_model(fit3_completo0l, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
+# 
+# # modelo reduzido aplcando log
+# tab_model(fit3_reduzidol, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
 ```
 
 #########################################################################
 ### Modelagem -  Estagio 4
-#### Estagio 4 - modelo completo ----
-
-
-```{r}
-est$estacoes = relevel(est$estacoes, ref = "verao")
-fit4_completo <- glmer.nb(Estagio.IV ~ estacoes+E2+P4 + (1 | femea),
-                          data=na.omit(est))
-summary(fit4_completo)
-```
-
 #### Estagio 4 - ANOVA----
 
 ```{r}
+# modelo completo com interacoes sem aplicar log
 fit4_completo0 <- glmer.nb(Estagio.IV ~ estacoes*E2+P4 + (1 | femea),
                           data=na.omit(est))
 
-car::Anova(fit4_completo0)
+# modelo completo com interacoes aplicando log
+fit4_completo0l <- glmer.nb(Estagio.IV ~ estacoes*log(E2+1)+log(P4) + (1 | femea),
+                          data=na.omit(est))
 ```
+
+
+```{r}
+car::Anova(fit4_completo0)
+car::Anova(fit4_completo0l)
+```
+
+No modelo em que se aplica log, o valor p da interacao e menor sendo significativo a 10% e nao significativo a 5%
+
+#### Estagio 4 - modelo completo ----
+
+```{r}
+est$estacoes = relevel(est$estacoes, ref = "verao")
+
+# sem aplicar log
+fit4_completo <- glmer.nb(Estagio.IV ~ estacoes+E2+P4 + (1 | femea),
+                          data=na.omit(est))
+
+# aplicando log
+fit4_completol <- glmer.nb(Estagio.IV ~ estacoes+log(E2+1)+log(P4) + (1 | femea),
+                          data=na.omit(est))
+summary(fit4_completo)
+summary(fit4_completol)
+
+```
+
 
 #### Estagio 4 - modelo reduzido ----
 
 ```{r}
 est$estacoes = relevel(est$estacoes, ref = "inverno")
+
+# aplicando log
+fit4_reduzidol <- glmer.nb(Estagio.IV ~ inv_prim+log(E2+1)+log(P4) +(1 | femea),
+                          data=na.omit(est))
+
+# sem aplicar log
 fit4_reduzido <- glmer.nb(Estagio.IV ~ inv_prim+E2+P4 +(1 | femea),
                           data=na.omit(est))
 summary(fit4_reduzido)
+summary(fit4_reduzidol)
 ```
 
 #### Estagio 4 - Teste razao de verossimilhanca ----
 
 ```{r}
-lrtest( fit4_reduzido, fit4_completo)
+# sem aplicar log
+lrtest(fit4_reduzido, fit4_completo)
+# aplicando log
+lrtest(fit4_reduzidol, fit4_completol)
+
 ```
 
 #### Estagio 4 - Residuos Dharma ----
 
 ```{r}
+# sem aplicar log
 simulationOutput <- simulateResiduals(fittedModel=fit4_reduzido, plot = F)
 residuals(simulationOutput)
 residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
 plot(simulationOutput)
+
+# aplicando log
+simulationOutput <- simulateResiduals(fittedModel=fit4_reduzidol, plot = F)
+residuals(simulationOutput)
+residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
+plot(simulationOutput)
+
 ```
 
 #### Estagio 4 - exponecializa e transforma em tabela ----
 
 ```{r}
-tab_model(fit4_completo, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
-
-tab_model(fit4_reduzido, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
+# # sem aplicar log
+# tab_model(fit4_completo, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%',
+#           show.reflvl = TRUE, digits = 3)
+# 
+# tab_model(fit4_reduzido, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%',
+#           show.reflvl = TRUE, digits = 3)
+# 
+# # aplicando log
+# tab_model(fit4_completol, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%',
+#           show.reflvl = TRUE, digits = 3)
+# 
+# tab_model(fit4_reduzidol, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%',
+#           show.reflvl = TRUE, digits = 3)
 ```
 
 ####################################################
@@ -702,13 +852,13 @@ plot(simulationOutput)
 #### Progesterona - exponecializa e transforma em tabela ----
 
 ```{r}
-tab_model(fit5_completo, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
-
-tab_model(fit5_reduzido, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
+# tab_model(fit5_completo, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
+# 
+# tab_model(fit5_reduzido, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
 ```
 
 #######################################################
@@ -755,11 +905,11 @@ plot(simulationOutput)
 #### Estradiol - exponecializa e transforma em tabela ----
 
 ```{r}
-tab_model(fit6_completo, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
-
-tab_model(fit6_reduzido, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-          show.reflvl = TRUE, digits = 3)
+# tab_model(fit6_completo, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
+# 
+# tab_model(fit6_reduzido, show.se = TRUE, string.est = "Estimativa",
+#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
+#           show.reflvl = TRUE, digits = 3)
 ```
