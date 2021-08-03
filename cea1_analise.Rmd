@@ -432,7 +432,7 @@ car::Anova(fit1_invernol)
 
 <!-- ``` -->
 
-#### Estagio 1 - Modelo reduzido
+#### Estagio 1 - Modelo reduzido (sem interacao)
 ```{r}
 # sem aplocar log
 est$estacoes = relevel(est$estacoes, ref = "inverno") # define a casela de referencia
@@ -567,6 +567,13 @@ car::Anova(fit2_invernol)
 fit2_reduzido <- glmer.nb(Estagio.II ~ (1|femea), data=na.omit(est))
 ```
 
+### estagio 2 - trv equivalente a anova
+```{r}
+lrtest(fit2_reduzido,fit2_inverno)
+lrtest(fit2_reduzido,fit2_invernol)
+```
+
+
 #### Estagio 2 - Residuos Dharma ----
 residuos do modelo apenas com intercepto
 ```{r}
@@ -637,6 +644,12 @@ fit3_reduzidol <- glmmTMB(Estagio.III ~ inv_prim*log(E2+1)+log(P4) +(1 | femea),
                          data=na.omit(est), 
                          family=nbinom1(link="log"))
 
+
+# aplicando o log nos hormonios
+fit3_reduzidol2 <- glmmTMB(Estagio.III ~ inv_prim+log(E2+1)+log(P4) +(1 | femea),
+                         data=na.omit(est), 
+                         family=nbinom1(link="log"))
+
 summary(fit3_reduzido)
 summary(fit3_reduzidol)
 ```
@@ -644,6 +657,9 @@ summary(fit3_reduzidol)
 #### Estagio 3 -  teste razao de verossimilhanca ----
 
 ```{r}
+# comparando os dois completos log
+lrtest(fit3_completol, fit3_completo0l)
+
 # comparando os dois completos
 lrtest(fit3_completo, fit3_completo0)
 
@@ -717,6 +733,11 @@ fit4_completo0l <- glmer.nb(Estagio.IV ~ estacoes*log(E2+1)+log(P4) + (1 | femea
 
 
 ```{r}
+summary(fit4_completo0l)
+```
+
+
+```{r}
 car::Anova(fit4_completo0)
 car::Anova(fit4_completo0l)
 ```
@@ -739,7 +760,11 @@ summary(fit4_completo)
 summary(fit4_completol)
 
 ```
-
+#### Estagio 4 - trv equivalente a anova
+```{r}
+lrtest(fit4_completo,fit4_completo0)
+lrtest(fit4_completol,fit4_completo0l)
+```
 
 #### Estagio 4 - modelo reduzido ----
 
@@ -766,6 +791,15 @@ lrtest(fit4_reduzido, fit4_completo)
 lrtest(fit4_reduzidol, fit4_completol)
 
 ```
+
+#### Estagio 4 - Teste razao de verossimilhanca ----
+```{r}
+# sem aplicar log
+lrtest(fit4_reduzido, fit4_completo0)
+# aplicando log
+lrtest(fit4_reduzidol, fit4_completo0l)
+```
+
 
 #### Estagio 4 - Residuos Dharma ----
 
