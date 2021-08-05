@@ -14,7 +14,6 @@ output:
 
 ```{r setup, include=FALSE}
 require(tidyverse)
-#require(transformr)
 knitr::opts_chunk$set(cache=TRUE, fig.align="center", out.width="100%", warning=FALSE, message = FALSE)
 ```
 
@@ -22,16 +21,12 @@ knitr::opts_chunk$set(cache=TRUE, fig.align="center", out.width="100%", warning=
 
 ## Pacotes Necessarios para a analise
 ```{r}
-library("grDevices")
 library(scales)
 library("ggpubr")
-library(GGally)
-library(qwraps2)
 library(car)
 library(reshape2)
 library(Rmisc)
 library(robustbase)
-library(corrplot)
 library(ca)
 library(glmm)
 library(glmmTMB)
@@ -43,13 +38,8 @@ library(dplyr)
 library(tidyr)
 library(nlme)
 library(lme4)
-library(gamlss)
-require(dglm)
-require(MASS)
-library(effects)
 library(sjPlot)
 library(lmtest)
-require(pscl)
 
 #remotes::install_github("nyiuab/NBZIMM")
 #devtools::install_github(repo = "florianhartig/DHARMa", subdir = "DHARMa", 
@@ -105,17 +95,14 @@ dados<-dados[, c(-3)]  #excluir a variavel resferente ao numero da amostra usada
 dados$data<- as.Date(dados$data)
 
 
-
 #Criando a variavel de estacoes do ano
 dados['estacoes'] <- rep(c('outono', 'outono', 'outono', 'inverno', 'inverno', 'primavera', 
                            'primavera', 'verao', 'verao', 'verao', 'outono', 'inverno', 'inverno', 'primavera', 'primavera'), 6)
 
 #Transformacao log
-dados['P4']<-dados['P4']
-dados['E2']<-dados['E2']+0.1
 
 dados['logP4']<-log(dados$P4)
-dados['logE2']<-log(dados$E2)
+dados['logE2']<-log(dados$E2+0.1)
 
 head(dados) #visualizar os dados
 attach(dados)
@@ -180,6 +167,7 @@ pairs(dados[,c(11,12,5,6,7,8)],upper.panel = panel.cor,
 ```
 
 ### Perfis individuais e medios para o log dos hormonios, ao longo do tempo
+#### por data
 
 ```{r}
 ggplot(dados, aes(x = data, y = log(P4))) +
@@ -202,8 +190,10 @@ ggplot(dados, aes(x = data, y = log(E2))) +
   scale_x_date(date_breaks = "1 month", labels = date_format("%m-%Y")) +
   geom_point(aes(shape = femea, color=femea)) +
   labs(x="Estações", y="log E2")
+```
 
-
+#### por estacao
+```{r}
 #P4 e E2, por estação
 P4.plot2 <- summarySE(dados, measurevar = 'logP4', groupvars = 'estacoes', na.rm = TRUE)
 P4.plot2$estacoes<-factor(P4.plot2$estacoes, levels = c("verao","outono", "inverno", 
@@ -225,8 +215,9 @@ ggplot(E2.plot2, aes(x=estacoes, y=logE2, group=1)) +
   labs(x="Estações", y="log E2 (ng/mL)")
 ```
 
-### Perfis individuais e medios para os estagios, ao longo do tempo
+### Gráfico de colunas empilhadas, ao longo do tempo
 
+#### por data
 ```{r}
 #Por data ---
 est_data <-dados %>% dplyr::group_by(data) %>% dplyr::summarise(Estagio.I = sum(Estagio.I, na.rm = TRUE), 
@@ -246,8 +237,12 @@ ggplot(teste2, aes(x = variable, y = value, fill = Estagio)) +
   geom_bar(stat = "identity") +
   xlab("Data") +
   ylab("Porcentagem") +
-  theme(axis.text.x = element_text(angle = 90, vjust = 0.5)) 
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
 
+#### por estacao
+
+```{r}
 # Por estacao 
 est_esta<-dados %>% dplyr::group_by(estacoes) %>% dplyr::summarise(Estagio.I = sum(Estagio.I, na.rm = TRUE), 
                                                                    Estagio.II = sum(Estagio.II, na.rm = TRUE),
@@ -269,7 +264,13 @@ ggplot(teste2, aes(x = variable, y = value, fill = Estagio)) +
   xlab("Data") +
   ylab("Porcentagem") +
   theme(axis.text.x = element_text(angle = 90, vjust = 0.5))
+```
 
+### Perfis individuais e medios para os estagios, ao longo do tempo
+
+#### por data
+
+```{r}
 # Perfis individuais e medios por data
 df <- pivot_longer(dados, cols=5:8, names_to = "Estagio", values_to = "Quantidade")
 profile <- ggplot(df, aes(x=data, y=Quantidade, group=femea)) +
@@ -284,7 +285,11 @@ profile <- ggplot(df, aes(x=data, y=Quantidade, group=femea)) +
   theme(axis.text.y = element_text(size=13)) +
   facet_wrap(~Estagio)
 profile
+```
 
+#### por estacao
+
+```{r}
 # Perfis medios por estacao
 EstagioI.plot2 <- summarySE(dados, measurevar = 'Estagio.I', groupvars = 'estacoes', na.rm = TRUE)
 EstagioI.plot2$estacoes<-factor(EstagioI.plot2$estacoes, levels = c("verao","outono", "inverno", 
@@ -325,7 +330,11 @@ e4<-ggplot(EstagioIV.plot2, aes(x=estacoes, y=Estagio.IV, group=1)) +
 figure <- ggarrange(e1,e2,e3,e4,
                     ncol = 2, nrow = 2)
 figure
+```
 
+### Mapa simetrico
+
+```{r}
 # Tabela
 tab  #tabela criada anteriormente, com os dados de estagios e estacoes do ano
 
@@ -357,26 +366,16 @@ plot(ac, main='Mapa Simetrico')  #simetrico
 ```
 
 ## Modelagem 
-### Dados ----
+### Dados
+
 ```{r}
-dados<- read_excel("dados_organizados.xlsx")
-
-dados<- data.frame(dados)
-dados<-dados[, c(-3)]
-
-dados$data<- as.Date(dados$data)
+# transformando estacoes em factor
+dados['estacoes'] <- factor(estacoes)
 ```
-
 
 
 #### Criando a variavel de estacoes do ano ----
 ```{r}
-estacoes <- rep(c('outono', 'outono', 'outono', 'inverno', 'inverno', 'primavera', 
-                  'primavera', 'verao', 'verao', 'verao', 'outono', 'inverno', 'inverno', 'primavera', 'primavera'), 6)
-dados['estacoes']<-factor(estacoes)
-
-head(dados)
-
 est <- dados[, c("E2", "P4","Estagio.I","Estagio.II","Estagio.III", 
                  "Estagio.IV","data", "estacoes", "femea")]
 ```
@@ -429,7 +428,7 @@ residuals(simulationOutput)
 residuals(simulationOutput, quantileFunction = qnorm, outlierValues = c(-7,7))
 plot(simulationOutput)
 ```
-#### Estagio 1 - Outono de referencia ----
+#### Estagio 1 - inverno de referencia ----
 
 ```{r}
 fit1_inverno <- fit1_reduzido
@@ -587,11 +586,6 @@ plot(simulationOutput)
 #### Estagio 3 - exponecializa e transforma em tabela ----
 
 ```{r}
-# modelo completo aplicando log com interacao
-tab_model(fit3_completo0, show.se = TRUE, string.est = "Estimativa",
-          string.se = "Erro Padrao", string.ci = 'Intervalo 95%',
-          show.reflvl = TRUE, digits = 3)
-
 # modelo reduzido aplcando log
 tab_model(fit3_reduzido, show.se = TRUE, string.est = "Estimativa",
           string.se = "Erro Padrao", string.ci = 'Intervalo 95%',
@@ -599,7 +593,10 @@ tab_model(fit3_reduzido, show.se = TRUE, string.est = "Estimativa",
 ```
 
 #########################################################################
-### Modelagem -  Estagio 4
+### Modelagem -  Estagio 4 - Modelagem não recomendada
+
+Tentou-se modelar para estágio 4, mas no processo de modelagem, percebeu-se que  80% das observações são nulas, onde a maioria das observações para estágio IV são iguais a 0 no verão e outono, aumentando muito pouco - em valores absolutos - nas estações seguintes. Isso trouxe um viés ao modelo, com estimativas que não tinham significados práticos. Como o estudo não tem objetivo de predição, optou-se por analisar o comportamento dessa variável somente pela análise descritiva.
+
 #### Estagio 4 - ANOVA----
 
 ```{r}
@@ -678,25 +675,25 @@ tab_model(fit4_reduzido, show.se = TRUE, string.est = "Estimativa",
 ### Banco de dados para modelagem dos hormonios
 
 ```{r}
-progesterona <- dados[, c("femea","P4", 'E2', "estacoes")]
+hormonios <- dados[, c("femea","P4", 'E2', "estacoes")]
 
-progesterona <- progesterona %>% drop_na(P4)
+hormonios <- hormonios %>% drop_na(P4)
 ```
 
 ### Modelagem -  Progesterona
 #### Progesterona - Inverno de referencia ----
 
 ```{r}
-progesterona$estacoes = relevel(progesterona$estacoes, ref = "verao")
-fit5_completo <- glmer(P4~ estacoes +(1|femea), data=na.omit(progesterona),
+hormonios$estacoes = relevel(hormonios$estacoes, ref = "verao")
+fit5_completo <- glmer(P4~ estacoes +(1|femea), data=na.omit(hormonios),
                        family=inverse.gaussian(link="log"))
 summary(fit5_completo)
 ```
 
 #### Progesterona - Outono ----
 ```{r}
-progesterona['outono'] = (ifelse(progesterona$estacoes=='outono', 1, 0))
-fit5_reduzido <- glmer(P4~ outono +(1|femea), data=na.omit(progesterona),
+hormonios['outono'] = (ifelse(hormonios$estacoes=='outono', 1, 0))
+fit5_reduzido <- glmer(P4~ outono +(1|femea), data=na.omit(hormonios),
                        family=inverse.gaussian(link="log"))
 summary(fit5_reduzido)
 ```
@@ -719,6 +716,10 @@ plot(simulationOutput)
 #### Progesterona - exponecializa e transforma em tabela ----
 
 ```{r}
+tab_model(fit5_completo, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%',
+          show.reflvl = TRUE, digits = 3)
+
 tab_model(fit5_reduzido, show.se = TRUE, string.est = "Estimativa",
           string.se = "Erro Padrao", string.ci = 'Intervalo 95%',
           show.reflvl = TRUE, digits = 3)
@@ -728,14 +729,14 @@ tab_model(fit5_reduzido, show.se = TRUE, string.est = "Estimativa",
 ### Modelagem - Estradiol ----
 
 ```{r}
-progesterona['inverno']<-(ifelse(progesterona$estacoes=='inverno', 1, 0))
+hormonios['inverno']<-(ifelse(hormonios$estacoes=='inverno', 1, 0))
 ```
 
 #### Estradiol - modelo completo ----
 
 ```{r}
-progesterona$estacoes = relevel(progesterona$estacoes, ref = "verao")
-fit6_completo <- glmer((E2+1)~ estacoes +(1|femea), data=na.omit(progesterona),
+hormonios$estacoes = relevel(hormonios$estacoes, ref = "verao")
+fit6_completo <- glmer((E2+1)~ estacoes +(1|femea), data=na.omit(hormonios),
                        family=inverse.gaussian(link="log"), control = glmerControl(tolPwrss=1e-6))
 
 summary(fit6_completo)
@@ -744,7 +745,7 @@ summary(fit6_completo)
 #### Estradiol - Modelo reduzido ----
 
 ```{r}
-fit6_reduzido <- glmer((E2+1)~ inverno +(1|femea), data=na.omit(progesterona),
+fit6_reduzido <- glmer((E2+1)~ inverno +(1|femea), data=na.omit(hormonios),
                        family=inverse.gaussian(link="log"), control = glmerControl(tolPwrss=1e-6))
 
 summary(fit6_reduzido)
@@ -768,11 +769,11 @@ plot(simulationOutput)
 #### Estradiol - exponecializa e transforma em tabela ----
 
 ```{r}
-# tab_model(fit6_completo, show.se = TRUE, string.est = "Estimativa",
-#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-#           show.reflvl = TRUE, digits = 3)
-# 
-# tab_model(fit6_reduzido, show.se = TRUE, string.est = "Estimativa",
-#           string.se = "Erro Padrao", string.ci = 'Intervalo 95%', 
-#           show.reflvl = TRUE, digits = 3)
+tab_model(fit6_completo, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%',
+          show.reflvl = TRUE, digits = 3)
+
+tab_model(fit6_reduzido, show.se = TRUE, string.est = "Estimativa",
+          string.se = "Erro Padrao", string.ci = 'Intervalo 95%',
+          show.reflvl = TRUE, digits = 3)
 ```
