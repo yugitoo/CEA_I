@@ -17,6 +17,7 @@ require(tidyverse)
 knitr::opts_chunk$set(cache=TRUE, fig.align="center", out.width="100%", warning=FALSE, message = FALSE)
 ```
 
+<!-- Se for gerar pdf, comentar as sessoes "exponecializa e transforma em tabela" -->
 ## Introducao
 
 ## Pacotes Necessarios para a analise
@@ -30,7 +31,6 @@ library(robustbase)
 library(ca)
 library(glmm)
 library(glmmTMB)
-library(readxl)
 library(ggplot2)
 library(RColorBrewer)
 library("summarytools")
@@ -88,7 +88,24 @@ panel.cor <- function(x, y, digits = 2, prefix = "", cex.cor, ...) {
 - Criar a tranformacao log para os homonios
 
 ```{r}
-dados<- read_excel("dados_organizados.xlsx")
+dados<- read.table("dados_organizados.dat",header = TRUE)
+# se der problema na leitura, descomentar os comandos abaixo
+# dados$oviduto<-as.character(dados$oviduto)
+# dados$oviduto<-as.numeric(dados$oviduto)
+# dados$amostra<-as.character(dados$amostra)
+# dados$amostra<-as.numeric(dados$amostra)
+# dados$P4-as.character(dados$P4)
+# dados$P4<-as.numeric(dados$P4)
+# dados$E2<-as.character(dados$E2)
+# dados$E2<-as.numeric(dados$E2)
+# dados$Estagio.I<-as.character(dados$Estagio.I)
+# dados$Estagio.I-as.numeric(dados$Estagio.I)
+# dados$Estagio.II<-as.character(dados$Estagio.II)
+# dados$Estagio.II-as.numeric(dados$Estagio.II)
+# dados$Estagio.III<-as.character(dados$Estagio.III)
+# dados$Estagio.III-as.numeric(dados$Estagio.III)
+# dados$Estagio.IV<-as.character(dados$Estagio.IV)
+# dados$Estagio.IV-as.numeric(dados$Estagio.IV)
 
 dados<- data.frame(dados)
 dados<-dados[, c(-3)]  #excluir a variavel resferente ao numero da amostra usada pelo laboratorio
